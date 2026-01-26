@@ -702,6 +702,70 @@ def work():
     pass
 
 
+@work.command("logs")
+@click.argument("ticket_id", required=False)
+@click.option("--show", type=click.Choice(["meta", "plan", "plan_repaired", "execution", "validation", "result", "exception"]))
+@click.option("--tail", default=200, help="Tail N lines for text outputs")
+@click.pass_context
+def work_logs(ctx, ticket_id: str | None, show: str | None, tail: int):
+    """Show saved logs/artifacts for the most recent orchestration run."""
+    path: Path = ctx.obj["project_path"]
+    runs_dir = path / ".projektor" / "runs"
+
+    if not runs_dir.exists():
+        console.print(f"[dim]No runs directory found at {runs_dir}[/dim]")
+        return
+
+    runs = [p for p in runs_dir.iterdir() if p.is_dir()]
+    if ticket_id:
+        runs = [p for p in runs if p.name.startswith(f"{ticket_id}_")]
+
+    runs.sort(key=lambda p: p.name, reverse=True)
+    if not runs:
+        console.print("[dim]No runs found[/dim]")
+        return
+
+    latest = runs[0]
+    console.print(f"[bold]Latest run:[/bold] {latest}")
+
+    mapping = {
+        "meta": latest / "meta.json",
+        "plan": latest / "plan.json",
+        "plan_repaired": latest / "plan_repaired.json",
+        "execution": latest / "execution.json",
+        "validation": latest / "validation_errors.json",
+        "result": latest / "result.json",
+        "exception": latest / "exception.txt",
+    }
+
+    if not show:
+        console.print("\n[bold]Available artifacts:[/bold]")
+        for k, fp in mapping.items():
+            if fp.exists():
+                console.print(f"  - {k}: {fp.name}")
+        return
+
+    fp = mapping.get(show)
+    if not fp or not fp.exists():
+        console.print(f"[dim]Artifact not found: {show}[/dim]")
+        return
+
+    if fp.suffix in (".json",):
+        try:
+            data = json.loads(fp.read_text())
+            console.print_json(json.dumps(data, indent=2))
+        except Exception:
+            console.print(fp.read_text())
+        return
+
+    # text
+    text = fp.read_text(errors="replace")
+    lines = text.splitlines()
+    if tail and len(lines) > tail:
+        lines = lines[-tail:]
+    console.print("\n".join(lines))
+
+
 @work.command("on")
 @click.argument("ticket_id")
 @click.option("--dry-run", is_flag=True, help="Don't make changes")

@@ -163,6 +163,8 @@ Plan musi zawierać konkretne kroki do wykonania, każdy z:
 Ważne zasady:
 - `target_file` musi być realną ścieżką pliku w repozytorium (relative do root projektu)
 - Nigdy nie używaj pseudo-ścieżek typu `<string>`, `<stdin>`, `-` itp.
+- Preferuj modyfikowanie istniejących plików; jeśli plik nie istnieje, dodaj najpierw krok `create_file`.
+- Dla kodu biblioteki Projektor używaj ścieżek z prefiksem `src/` (np. `src/projektor/integration/decorators.py`).
 
 Odpowiedz w formacie JSON:
 {

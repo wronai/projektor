@@ -248,6 +248,10 @@ class Orchestrator:
                 return result
 
             self._repair_plan_target_files(plan)
+            if run_dir is not None:
+                (run_dir / "plan_repaired.json").write_text(
+                    json.dumps(plan.to_dict(), indent=2)
+                )
 
             validation_errors = self._validate_plan(plan)
             if validation_errors:
@@ -379,7 +383,7 @@ class Orchestrator:
                 created.add(step.target_file)
 
         for step in plan.steps:
-            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE):
+            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE, StepType.REFACTOR):
                 continue
 
             if not step.target_file:
@@ -399,7 +403,7 @@ class Orchestrator:
                 )
                 continue
 
-            if step.step_type in (StepType.MODIFY_FILE, StepType.DELETE_FILE):
+            if step.step_type in (StepType.MODIFY_FILE, StepType.DELETE_FILE, StepType.REFACTOR):
                 if step.target_file not in created and not (self.project.root_path / step.target_file).exists():
                     errors.append(
                         f"Invalid plan: step {step.step_number} target_file not found: {step.target_file}"
@@ -491,7 +495,7 @@ class Orchestrator:
                 created.add(step.target_file)
 
         for step in plan.steps:
-            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE):
+            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE, StepType.REFACTOR):
                 continue
             if not step.target_file:
                 continue
