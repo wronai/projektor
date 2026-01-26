@@ -158,6 +158,7 @@ class Orchestrator:
         # Lazy-loaded components
         self._planner: TaskPlanner | None = None
         self._executor: PlanExecutor | None = None
+        self._file_index: dict[str, list[str]] | None = None
 
     @property
     def planner(self) -> TaskPlanner:
@@ -245,6 +246,8 @@ class Orchestrator:
                 result.errors.append(f"Planning failed: {plan.error}")
                 result.status = OrchestrationStatus.FAILED
                 return result
+
+            self._repair_plan_target_files(plan)
 
             validation_errors = self._validate_plan(plan)
             if validation_errors:
@@ -376,7 +379,7 @@ class Orchestrator:
                 created.add(step.target_file)
 
         for step in plan.steps:
-            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE, StepType.RUN_TESTS):
+            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE):
                 continue
 
             if not step.target_file:
@@ -403,6 +406,74 @@ class Orchestrator:
                     )
 
         return errors
+
+    def _build_file_index(self) -> dict[str, list[str]]:
+        if self._file_index is not None:
+            return self._file_index
+
+        ignore_dirnames = {".git", ".venv", "venv", "__pycache__", ".projektor"}
+        index: dict[str, list[str]] = {}
+        for p in self.project.root_path.rglob("*"):
+            try:
+                if not p.is_file():
+                    continue
+                if any(part in ignore_dirnames for part in p.parts):
+                    continue
+                rel = p.relative_to(self.project.root_path).as_posix()
+                index.setdefault(p.name, []).append(rel)
+            except Exception:
+                continue
+
+        self._file_index = index
+        return index
+
+    def _resolve_target_file(self, target_file: str) -> str | None:
+        # already valid
+        if (self.project.root_path / target_file).exists():
+            return target_file
+
+        base = Path(target_file).name
+        candidates = self._build_file_index().get(base, [])
+        if not candidates:
+            return None
+
+        if len(candidates) == 1:
+            return candidates[0]
+
+        dir_hint = Path(target_file).parent.as_posix()
+        if dir_hint and dir_hint not in (".", "/"):
+            filtered = [c for c in candidates if dir_hint in c]
+            if len(filtered) == 1:
+                return filtered[0]
+
+        return None
+
+    def _repair_plan_target_files(self, plan) -> None:
+        from projektor.orchestration.planner import StepType
+
+        created: set[str] = set()
+        for step in plan.steps:
+            if step.step_type == StepType.CREATE_FILE and step.target_file:
+                created.add(step.target_file)
+
+        for step in plan.steps:
+            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE):
+                continue
+            if not step.target_file:
+                continue
+
+            if step.target_file in created:
+                continue
+
+            if (self.project.root_path / step.target_file).exists():
+                continue
+
+            resolved = self._resolve_target_file(step.target_file)
+            if resolved and resolved != step.target_file:
+                logger.info(
+                    f"[{plan.model_used or self.model}] Rewriting target_file {step.target_file} -> {resolved}"
+                )
+                step.target_file = resolved
 
     async def plan_ticket(
         self,
