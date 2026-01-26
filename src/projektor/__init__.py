@@ -11,7 +11,7 @@ Example:
     >>> result = await orchestrator.work_on_ticket("PROJ-42")
 """
 
-__version__ = "0.1.11"
+__version__ = "0.1.12"
 __author__ = "Softreck"
 
 # Core

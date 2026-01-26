@@ -164,7 +164,8 @@ Ważne zasady:
 - `target_file` musi być realną ścieżką pliku w repozytorium (relative do root projektu)
 - Nigdy nie używaj pseudo-ścieżek typu `<string>`, `<stdin>`, `-` itp.
 - Preferuj modyfikowanie istniejących plików; jeśli plik nie istnieje, dodaj najpierw krok `create_file`.
-- Dla kodu biblioteki Projektor używaj ścieżek z prefiksem `src/` (np. `src/projektor/integration/decorators.py`).
+- Jeśli w projekcie istnieje katalog `src/`, preferuj ścieżki z prefiksem `src/` dla plików, które istnieją w tym projekcie (albo zostaną utworzone krokiem `create_file`).
+- Nie używaj ścieżek `src/projektor/...` jeśli taki plik nie jest częścią aktualnego repozytorium (musi istnieć w projekcie lub być na liście plików w prompt).
 
 Odpowiedz w formacie JSON:
 {
@@ -294,9 +295,22 @@ Skup się na:
             if files:
                 parts.append("# Dostępne pliki w projekcie (lista skrócona)")
                 parts.append("Używaj WYŁĄCZNIE ścieżek z tej listy jako target_file.")
+                parts.append(
+                    "Jeśli potrzebujesz pliku, którego nie ma na liście, dodaj najpierw krok create_file z właściwym target_file."
+                )
                 parts.append("```")
                 parts.extend(files)
                 parts.append("```")
+                parts.append("")
+        except Exception:
+            pass
+
+        try:
+            if not (project.root_path / "src" / "projektor").exists():
+                parts.append("# Ważne")
+                parts.append(
+                    "To NIE jest repozytorium źródeł Projektor. Nie planuj zmian w ścieżkach typu `src/projektor/...` chyba że taki plik istnieje w tym projekcie."
+                )
                 parts.append("")
         except Exception:
             pass

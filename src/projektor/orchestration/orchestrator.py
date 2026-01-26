@@ -405,8 +405,28 @@ class Orchestrator:
 
             if step.step_type in (StepType.MODIFY_FILE, StepType.DELETE_FILE, StepType.REFACTOR):
                 if step.target_file not in created and not (self.project.root_path / step.target_file).exists():
+                    hint = ""
+
+                    try:
+                        if step.target_file.startswith("src/projektor/") and not (
+                            self.project.root_path / "src" / "projektor"
+                        ).exists():
+                            hint = (
+                                " (looks like Projektor sources; you are running on a different project. "
+                                "Use a file from this repo or run orchestration in the Projektor repo)"
+                            )
+                    except Exception:
+                        pass
+
+                    try:
+                        resolved = self._resolve_target_file(step.target_file)
+                        if resolved and (self.project.root_path / resolved).exists():
+                            hint = f" (did you mean: {resolved})"
+                    except Exception:
+                        pass
+
                     errors.append(
-                        f"Invalid plan: step {step.step_number} target_file not found: {step.target_file}"
+                        f"Invalid plan: step {step.step_number} target_file not found: {step.target_file}{hint}"
                     )
 
         return errors
