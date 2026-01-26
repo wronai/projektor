@@ -91,9 +91,50 @@ def cli(ctx, project: str, verbose: bool):
 
         project_env = project_path / ".env"
         if project_env.exists():
-            load_dotenv(dotenv_path=project_env, override=False)
+            load_dotenv(dotenv_path=project_env, override=True)
     except ImportError:
         pass
+
+
+@cli.command("doctor")
+@click.pass_context
+def doctor(ctx):
+    """Show diagnostics for LLM configuration and environment variables."""
+    project_path: Path = ctx.obj["project_path"]
+    cfg = ctx.obj.get("config")
+
+    model = getattr(getattr(cfg, "llm", None), "model", None)
+    console.print("[bold]Projektor Doctor[/bold]\n")
+    console.print(f"[bold]Project:[/bold] {project_path}")
+    console.print(f"[bold]Model:[/bold] {model or '[dim]unknown[/dim]'}")
+
+    project_env = project_path / ".env"
+    console.print(f"[bold].env:[/bold] {'[green]found[/green]' if project_env.exists() else '[yellow]missing[/yellow]'} ({project_env})")
+
+    def _mask(v: str) -> str:
+        if len(v) <= 10:
+            return "***"
+        return f"{v[:6]}...{v[-4:]}"
+
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+    console.print("\n[bold]LLM Auth Env Vars:[/bold]")
+    console.print(
+        f"  OPENROUTER_API_KEY: {'[green]set[/green] ' + _mask(openrouter_key) if openrouter_key else '[red]missing[/red]'}"
+    )
+    console.print(
+        f"  OPENAI_API_KEY: {'[green]set[/green] ' + _mask(openai_key) if openai_key else '[dim]missing[/dim]'}"
+    )
+    console.print(
+        f"  ANTHROPIC_API_KEY: {'[green]set[/green] ' + _mask(anthropic_key) if anthropic_key else '[dim]missing[/dim]'}"
+    )
+
+    console.print("\n[bold]Tips:[/bold]")
+    console.print("  - Put OPENROUTER_API_KEY in your project .env (project root)")
+    console.print("  - Or export it in the same shell before running `projektor`")
+    console.print("  - If OPENROUTER_API_KEY is set but empty, run: unset OPENROUTER_API_KEY")
 
 
 # ==================== Project Commands ====================
@@ -638,6 +679,20 @@ def work_on(ctx, ticket_id: str, dry_run: bool, no_commit: bool, no_tests: bool,
 
         model = getattr(getattr(cfg, "llm", None), "model", "openrouter/x-ai/grok-3-fast")
         max_iterations = getattr(getattr(cfg, "orchestration", None), "max_iterations", 10)
+
+        if isinstance(model, str) and model.startswith("openrouter/"):
+            if not (os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")):
+                console.print("[red]✗[/red] Missing LLM credentials for OpenRouter model")
+                console.print("  Expected: OPENROUTER_API_KEY (recommended) or OPENAI_API_KEY")
+                console.print(f"  Project .env path: {path / '.env'}")
+                console.print("  Run: projektor doctor")
+                api_key = input("Enter your OpenRouter API key (or press Enter to exit): ")
+                if api_key.strip():
+                    os.environ["OPENROUTER_API_KEY"] = api_key
+                    console.print("[green]✓[/green] API key set for this session")
+                else:
+                    console.print("[red]✗[/red] No API key provided. Exiting.")
+                    sys.exit(1)
 
         if ctx.get_parameter_source("no_commit") == ParameterSource.DEFAULT:
             auto_commit = getattr(getattr(cfg, "orchestration", None), "auto_commit", True)
