@@ -27,6 +27,9 @@ PROJECT_NAME := projektor
 PYTHON := python3
 PIP := pip3
 PYTEST := python3 -m pytest
+VENV_PYTHON := $(PYTHON)
+VENV_PIP := $(PIP)
+VENV_TWINE := /home/tom/github/wronai/projektor/venv/bin/twine
 
 export PYTHONPATH := src
 
@@ -138,8 +141,9 @@ clean: ## Clean build artifacts
 # Release
 # =============================================================================
 
-build: clean ## Build package
-	$(PYTHON) -m build
+build: clean
+	$(VENV_PIP) install build
+	$(VENV_PYTHON) -m build
 
 publish-test: build ## Publish to TestPyPI
 	$(PYTHON) -m twine upload --repository testpypi dist/*
@@ -162,7 +166,7 @@ publish: build ## Publish to PyPI (with version bump)
 	@echo "$(YELLOW)Rebuilding package with new version...$(NC)"
 	$(MAKE) build
 	@echo "$(YELLOW)Publishing to PyPI...$(NC)"
-	$(PYTHON) -m twine upload dist/*
+	$(VENV_TWINE) upload dist/*
 
 push: ## Complete release (bump version + commit + push + build + push Docker + PyPI + Git tag)
 	@echo "$(YELLOW)Starting complete release process...$(NC)"
@@ -176,7 +180,7 @@ push: ## Complete release (bump version + commit + push + build + push Docker + 
 	@echo "$(YELLOW)4. Building package...$(NC)"
 	$(MAKE) build
 	@echo "$(YELLOW)5. Publishing to PyPI...$(NC)"
-	$(PYTHON) -m twine upload dist/*
+	$(VENV_TWINE) upload dist/*
 	@echo "$(YELLOW)6. Creating and pushing git tag...$(NC)"
 	$(MAKE) git-tag
 	@echo "$(GREEN)🎉 Complete release finished successfully!$(NC)"

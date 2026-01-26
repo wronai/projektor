@@ -11,7 +11,7 @@ Example:
     >>> result = await orchestrator.work_on_ticket("PROJ-42")
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.4"
 __author__ = "Softreck"
 
 # Core
@@ -38,8 +38,8 @@ from projektor.planning.backlog import Backlog
 from projektor.planning.milestone import Milestone
 
 # Planning
-from projektor.planning.roadmap import Roadmap
-from projektor.planning.sprint import Sprint
+from projektor.planning.roadmap import Goal, Roadmap
+from projektor.planning.sprint import Sprint, create_sprint
 
 __all__ = [
     # Version
@@ -56,8 +56,10 @@ __all__ = [
     "EventBus",
     # Planning
     "Roadmap",
+    "Goal",
     "Milestone",
     "Sprint",
+    "create_sprint",
     "Backlog",
     # Orchestration
     "Orchestrator",

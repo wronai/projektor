@@ -101,20 +101,23 @@ export OPENAI_API_KEY="your-key"
 ### Użycie CLI
 
 ```bash
+# Pełna dokumentacja CLI
+# zobacz: docs/cli.md
+
 # Inicjalizacja projektu
-projektor init /path/to/project
+projektor --project /path/to/project project init "my-project" --language python
 
 # Tworzenie ticketu
-projektor ticket create "Dodaj obsługę cache Redis" --priority high
+projektor --project /path/to/project ticket create "Dodaj obsługę cache Redis" --priority high
 
 # Realizacja ticketu (LLM + DevOps)
-projektor ticket work PROJ-42
+projektor --project /path/to/project work on PROJ-42
+
+# Wygenerowanie planu (bez wykonywania)
+projektor --project /path/to/project work plan PROJ-42 --output plan.json
 
 # Status projektu
-projektor status
-
-# Generowanie raportu
-projektor report --format markdown
+projektor --project /path/to/project project status
 ```
 
 ### Użycie jako biblioteka

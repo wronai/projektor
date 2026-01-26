@@ -67,7 +67,7 @@ def sample_ticket():
         id="TEST-1",
         title="Sample ticket",
         description="This is a sample ticket for testing",
-        ticket_type=TicketType.TASK,
+        type=TicketType.TASK,
         priority=Priority.MEDIUM,
     )
 

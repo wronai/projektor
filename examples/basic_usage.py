@@ -31,7 +31,7 @@ def demo_tickets():
         id="BUG-1",
         title="Login button not working on mobile",
         description="Users report that the login button is unresponsive on iOS devices",
-        ticket_type=TicketType.BUG,
+        type=TicketType.BUG,
         priority=Priority.HIGH,
     )
     
@@ -39,7 +39,7 @@ def demo_tickets():
         id="FEAT-1",
         title="Add dark mode support",
         description="Implement a dark mode theme for the application",
-        ticket_type=TicketType.FEATURE,
+        type=TicketType.FEATURE,
         priority=Priority.MEDIUM,
     )
     
@@ -47,7 +47,7 @@ def demo_tickets():
         id="TECH-1",
         title="Refactor authentication module",
         description="Reduce cyclomatic complexity in auth.py from 35 to < 15",
-        ticket_type=TicketType.TECH_DEBT,
+        type=TicketType.TECH_DEBT,
         priority=Priority.LOW,
     )
     
@@ -125,29 +125,37 @@ def demo_backlog():
     
     backlog = Backlog()
     
-    # Add items with story points
-    backlog.add("STORY-1", points=5)
-    backlog.add("STORY-2", points=8)
-    backlog.add("STORY-3", points=3)
-    backlog.add("STORY-4", points=13)
-    backlog.add("STORY-5", points=2)
+    # Add items
+    backlog.add("STORY-1", priority=0)
+    backlog.add("STORY-2", priority=1)
+    backlog.add("STORY-3", priority=2)
+    backlog.add("STORY-4", priority=3)
+    backlog.add("STORY-5", priority=4)
+
+    ticket_points = {
+        "STORY-1": 5,
+        "STORY-2": 8,
+        "STORY-3": 3,
+        "STORY-4": 13,
+        "STORY-5": 2,
+    }
     
     print(f"\n📊 Backlog has {len(backlog.items)} items")
-    print(f"   Total points: {backlog.total_points}")
+    print(f"   Total points: {sum(ticket_points.values())}")
     
     print("\n   Top 3 items:")
-    for item in backlog.get_top(3):
-        print(f"   {item.priority}. {item.ticket_id} ({item.points} pts)")
+    for i, ticket_id in enumerate(backlog.get_top(3), start=1):
+        print(f"   {i}. {ticket_id} ({ticket_points.get(ticket_id, 0)} pts)")
     
     # Sprint planning
     print("\n--- Sprint Planning (capacity: 15 pts) ---")
-    sprint_items = backlog.get_for_sprint(capacity=15)
+    sprint_items = backlog.get_for_sprint(points_capacity=15, ticket_points=ticket_points)
     
     print(f"   Selected for sprint:")
-    for item in sprint_items:
-        print(f"   - {item.ticket_id} ({item.points} pts)")
+    for ticket_id in sprint_items:
+        print(f"   - {ticket_id} ({ticket_points.get(ticket_id, 0)} pts)")
     
-    total = sum(i.points for i in sprint_items)
+    total = sum(ticket_points.get(t, 0) for t in sprint_items)
     print(f"   Total: {total} points")
     
     # Reprioritize
@@ -155,8 +163,8 @@ def demo_backlog():
     backlog.move_to_top("STORY-5")
     
     print("   New order:")
-    for item in backlog.get_top(3):
-        print(f"   {item.priority}. {item.ticket_id}")
+    for i, ticket_id in enumerate(backlog.get_top(3), start=1):
+        print(f"   {i}. {ticket_id}")
 
 
 def demo_roadmap():
@@ -168,37 +176,24 @@ def demo_roadmap():
     roadmap = Roadmap(
         vision="Build the most developer-friendly project management tool",
         goals=[
-            Goal(
-                id="G1",
-                title="Launch MVP",
-                description="Release minimum viable product to early adopters",
-                target_date=datetime.now() + timedelta(days=90),
-            ),
-            Goal(
-                id="G2",
-                title="Enterprise Ready",
-                description="Add features required for enterprise customers",
-                target_date=datetime.now() + timedelta(days=180),
-            ),
+            Goal(description="Release minimum viable product to early adopters"),
+            Goal(description="Add features required for enterprise customers"),
         ]
     )
     
     # Add milestones
     m1 = Milestone(
-        id="M1",
         name="Core Features Complete",
         description="All core features implemented and tested",
-        deadline=datetime.now() + timedelta(days=45),
+        deadline=(datetime.now() + timedelta(days=45)).date(),
     )
     m1.add_ticket("CORE-1")
     m1.add_ticket("CORE-2")
-    m1.complete_ticket("CORE-1")
     
     m2 = Milestone(
-        id="M2",
         name="Beta Release",
         description="Public beta available",
-        deadline=datetime.now() + timedelta(days=75),
+        deadline=(datetime.now() + timedelta(days=75)).date(),
     )
     m2.add_ticket("BETA-1")
     m2.add_ticket("BETA-2")
@@ -212,7 +207,7 @@ def demo_roadmap():
     print(f"\n📎 Goals:")
     for goal in roadmap.goals:
         status = "✅" if goal.completed else "⬜"
-        print(f"   {status} {goal.title}")
+        print(f"   {status} {goal.description}")
     
     print(f"\n🏁 Milestones:")
     for milestone in roadmap.milestones:

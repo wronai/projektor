@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
 import click
+from click.core import ParameterSource
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -19,7 +21,7 @@ console = Console()
 
 def run_async(coro):
     """Helper to run async functions."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 @click.group()
@@ -33,11 +35,27 @@ def cli(ctx, project: str, verbose: bool):
     Manage projects, tickets, sprints, and automated development workflows.
     """
     ctx.ensure_object(dict)
+    if ctx.get_parameter_source("project") == ParameterSource.DEFAULT:
+        env_project = os.environ.get("PROJEKTOR_PROJECT")
+        if env_project:
+            project = env_project
+
     project_path = Path(project).resolve()
     if project_path.is_file():
         project_path = project_path.parent
     ctx.obj["project_path"] = project_path
     ctx.obj["verbose"] = verbose
+
+    try:
+        from projektor.core.config import Config
+
+        config_path = project_path / "projektor.yaml"
+        if config_path.exists():
+            ctx.obj["config"] = Config.load(config_path)
+        else:
+            ctx.obj["config"] = Config.default(project_name=project_path.name)
+    except Exception:
+        ctx.obj["config"] = None
 
     try:
         from dotenv import load_dotenv
@@ -237,7 +255,7 @@ def ticket_show(ctx, ticket_id: str):
             Panel(
                 f"[bold]{ticket.title}[/bold]\n\n"
                 f"{ticket.description or 'No description'}\n\n"
-                f"Type: {ticket.ticket_type.value}\n"
+                f"Type: {ticket.type.value}\n"
                 f"Status: {ticket.status.value}\n"
                 f"Priority: {ticket.priority.value}\n"
                 f"Created: {ticket.created_at.strftime('%Y-%m-%d %H:%M')}\n"
@@ -277,7 +295,10 @@ def ticket_list(ctx, status: str | None, ticket_type: str | None, limit: int):
         status_filter = TicketStatus(status) if status else None
         type_filter = TicketType(ticket_type) if ticket_type else None
 
-        tickets = project.list_tickets(status=status_filter, ticket_type=type_filter)
+        tickets = project.list_tickets(status=status_filter.value if status_filter else None)
+
+        if type_filter:
+            tickets = [t for t in tickets if t.type == type_filter]
 
         if not tickets:
             console.print("[dim]No tickets found[/dim]")
@@ -294,7 +315,7 @@ def ticket_list(ctx, status: str | None, ticket_type: str | None, limit: int):
             table.add_row(
                 ticket.id,
                 ticket.title[:40] + ("..." if len(ticket.title) > 40 else ""),
-                ticket.ticket_type.value,
+                ticket.type.value,
                 ticket.status.value,
                 ticket.priority.value,
             )
@@ -315,6 +336,7 @@ def ticket_list(ctx, status: str | None, ticket_type: str | None, limit: int):
 def ticket_start(ctx, ticket_id: str):
     """Start working on a ticket."""
     from projektor.core.project import Project
+    from projektor.core.ticket import TicketStatus
 
     path = ctx.obj["project_path"]
 
@@ -326,7 +348,16 @@ def ticket_start(ctx, ticket_id: str):
             console.print(f"[red]✗[/red] Ticket {ticket_id} not found")
             sys.exit(1)
 
-        ticket.start()
+        if ticket.status == TicketStatus.BACKLOG:
+            ticket.transition_to(TicketStatus.TODO)
+
+        ok = ticket.start()
+        if not ok:
+            console.print(
+                f"[red]✗[/red] Cannot start ticket {ticket_id} from status: {ticket.status.value}"
+            )
+            sys.exit(1)
+
         project.save()
 
         console.print(f"[green]✓[/green] Started work on [cyan]{ticket_id}[/cyan]")
@@ -342,6 +373,7 @@ def ticket_start(ctx, ticket_id: str):
 def ticket_complete(ctx, ticket_id: str):
     """Mark ticket as complete."""
     from projektor.core.project import Project
+    from projektor.core.ticket import TicketStatus
 
     path = ctx.obj["project_path"]
 
@@ -353,7 +385,28 @@ def ticket_complete(ctx, ticket_id: str):
             console.print(f"[red]✗[/red] Ticket {ticket_id} not found")
             sys.exit(1)
 
-        ticket.complete()
+        if not ticket.all_criteria_met:
+            console.print(
+                f"[red]✗[/red] Cannot complete {ticket_id}: acceptance criteria not met"
+            )
+            sys.exit(1)
+
+        if ticket.status == TicketStatus.BACKLOG:
+            ticket.transition_to(TicketStatus.TODO)
+        if ticket.status == TicketStatus.TODO:
+            ticket.transition_to(TicketStatus.IN_PROGRESS)
+        if ticket.status == TicketStatus.IN_PROGRESS:
+            ticket.transition_to(TicketStatus.IN_REVIEW)
+        if ticket.status == TicketStatus.IN_REVIEW:
+            ticket.transition_to(TicketStatus.TESTING)
+
+        ok = ticket.complete()
+        if not ok:
+            console.print(
+                f"[red]✗[/red] Cannot complete ticket {ticket_id} from status: {ticket.status.value}"
+            )
+            sys.exit(1)
+
         project.save()
 
         console.print(f"[green]✓[/green] Completed [cyan]{ticket_id}[/cyan]")
@@ -420,20 +473,41 @@ def work_on(ctx, ticket_id: str, dry_run: bool, no_commit: bool, no_tests: bool)
     from projektor.orchestration.orchestrator import Orchestrator
 
     path = ctx.obj["project_path"]
+    cfg = ctx.obj.get("config")
 
     try:
         project = Project.load(path)
 
+        model = getattr(getattr(cfg, "llm", None), "model", "openrouter/x-ai/grok-3-fast")
+        max_iterations = getattr(getattr(cfg, "orchestration", None), "max_iterations", 10)
+
+        if ctx.get_parameter_source("no_commit") == ParameterSource.DEFAULT:
+            auto_commit = getattr(getattr(cfg, "orchestration", None), "auto_commit", True)
+        else:
+            auto_commit = not no_commit
+
+        if ctx.get_parameter_source("no_tests") == ParameterSource.DEFAULT:
+            run_tests = getattr(getattr(cfg, "orchestration", None), "run_tests", True)
+        else:
+            run_tests = not no_tests
+
+        if ctx.get_parameter_source("dry_run") == ParameterSource.DEFAULT:
+            dry_run_effective = getattr(getattr(cfg, "orchestration", None), "dry_run", False)
+        else:
+            dry_run_effective = dry_run
+
         orchestrator = Orchestrator(
             project=project,
-            auto_commit=not no_commit,
-            run_tests=not no_tests,
-            dry_run=dry_run,
+            model=model,
+            auto_commit=auto_commit,
+            run_tests=run_tests,
+            max_iterations=max_iterations,
+            dry_run=dry_run_effective,
         )
 
         console.print(f"[bold]Working on [cyan]{ticket_id}[/cyan]...[/bold]")
 
-        if dry_run:
+        if dry_run_effective:
             console.print("[yellow]DRY RUN - no changes will be made[/yellow]")
 
         result = run_async(orchestrator.work_on_ticket(ticket_id))
@@ -476,11 +550,13 @@ def work_plan(ctx, ticket_id: str, output: str | None):
     from projektor.orchestration.orchestrator import Orchestrator
 
     path = ctx.obj["project_path"]
+    cfg = ctx.obj.get("config")
 
     try:
         project = Project.load(path)
 
-        orchestrator = Orchestrator(project=project, dry_run=True)
+        model = getattr(getattr(cfg, "llm", None), "model", "openrouter/x-ai/grok-3-fast")
+        orchestrator = Orchestrator(project=project, model=model, dry_run=True)
 
         console.print(f"[bold]Planning for [cyan]{ticket_id}[/cyan]...[/bold]")
 
