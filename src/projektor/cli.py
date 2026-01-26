@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -22,6 +23,37 @@ console = Console()
 def run_async(coro):
     """Helper to run async functions."""
     return asyncio.run(coro)
+
+
+def _configure_logging(project_path: Path, verbose: bool) -> None:
+    log_dir = project_path / ".projektor"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "projektor.log"
+
+    level = logging.DEBUG if verbose else logging.INFO
+    root = logging.getLogger()
+    root.setLevel(level)
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    file_handler_exists = any(
+        isinstance(h, logging.FileHandler)
+        and getattr(h, "baseFilename", None) == str(log_file)
+        for h in root.handlers
+    )
+    if not file_handler_exists:
+        fh = logging.FileHandler(log_file)
+        fh.setLevel(level)
+        fh.setFormatter(formatter)
+        root.addHandler(fh)
+
+    if verbose:
+        stream_handler_exists = any(isinstance(h, logging.StreamHandler) for h in root.handlers)
+        if not stream_handler_exists:
+            sh = logging.StreamHandler()
+            sh.setLevel(level)
+            sh.setFormatter(formatter)
+            root.addHandler(sh)
 
 
 def _sync_ticket_state(project, ticket):
@@ -72,6 +104,8 @@ def cli(ctx, project: str, verbose: bool):
         project_path = project_path.parent
     ctx.obj["project_path"] = project_path
     ctx.obj["verbose"] = verbose
+
+    _configure_logging(project_path, verbose)
 
     try:
         from projektor.core.config import Config
