@@ -130,6 +130,30 @@ projektor work on PROJ-42
 projektor test run --coverage
 ```
 
+### Użycie w repo nie-Python (JS/TS, Go)
+
+Jeśli pracujesz nad repozytorium w innym języku niż Python, Projektor może uruchamiać testy jako krok `run_command` (np. `npm test`, `make test`).
+
+```bash
+# JS/TS (npm)
+projektor init -l typescript
+
+# Go (Makefile)
+projektor init -l go
+```
+
+Wygenerowany (lub uzupełniony) `projektor.yaml` powinien zawierać:
+
+```yaml
+orchestration:
+  run_tests: false
+
+extensions:
+  test_command: "npm test"  # albo: "make test"
+```
+
+Projektor automatycznie dopnie krok testów do planu, jeśli plan nie zawiera testów, a `extensions.test_command` jest ustawione.
+
 ### Nieinwazyjne Monitorowanie Błędów
 
 ```python
@@ -426,11 +450,8 @@ pytest tests/integration/
 
 ## 📚 Dokumentacja
 
-- [Getting Started](docs/getting-started.md)
-- [Configuration](docs/configuration.md)
-- [API Reference](docs/api-reference.md)
-- [Examples](docs/examples/)
-- [Contributing](CONTRIBUTING.md)
+- [CLI](docs/cli.md)
+- [Integration](docs/integration.md)
 
 ## 🤝 Integracje
 
@@ -458,7 +479,7 @@ Projektor śledzi:
 - Kod generowany przez LLM jest walidowany przed wykonaniem
 - Backup przed każdą modyfikacją
 - Rollback w przypadku błędów
-- Brak bezpośredniego wykonywania shell commands z LLM
+- `run_command` jest ograniczone do allowlisty bezpiecznych komend oraz (opcjonalnie) dokładnie do `extensions.test_command`
 - Kontrola uprawnień dla operacji git
 
 ## 📄 Licencja
