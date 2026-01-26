@@ -719,6 +719,9 @@ def work():
             "plan_tests",
             "plan_tests_stdout",
             "plan_tests_stderr",
+            "plan_test_command",
+            "plan_test_command_stdout",
+            "plan_test_command_stderr",
             "result",
             "exception",
         ]
