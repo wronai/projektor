@@ -200,6 +200,30 @@ projektor work on PROJ-1 --no-commit
 projektor work on PROJ-1 --no-tests
 ```
 
+Uwagi (repozytoria nie-Python):
+
+- Jeśli repozytorium nie jest w Pythonie, skonfiguruj testy przez `extensions.test_command` w `projektor.yaml` (np. `npm test`, `make test`).
+- Planner może automatycznie dopiąć krok testów jako `run_command`, a wyniki zostaną zapisane w run artifacts (patrz `work logs`).
+
+### `work logs`
+Pokazuje zapisane artefakty/logi dla najnowszego runa orkiestracji (w `.projektor/runs/`).
+
+```bash
+# lista dostępnych artefaktów
+projektor work logs
+
+# najnowszy run dla konkretnego ticketu
+projektor work logs PROJ-1
+
+# pokaż stdout/stderr z planowego uruchomienia testów (run_tests)
+projektor work logs PROJ-1 --show plan_tests_stdout
+projektor work logs PROJ-1 --show plan_tests_stderr
+
+# pokaż stdout/stderr z planowego uruchomienia testów jako run_command (extensions.test_command)
+projektor work logs PROJ-1 --show plan_test_command_stdout
+projektor work logs PROJ-1 --show plan_test_command_stderr
+```
+
 ---
 
 ## `test` — testy
