@@ -172,9 +172,25 @@ class EventBus:
             elif handler in self._handlers[event_type]:
                 self._handlers[event_type].remove(handler)
 
+    def _dispatch_event(self, event: Event) -> None:
+        event_type = event.type
+
+        for handler in self._global_handlers:
+            try:
+                handler(event)
+            except Exception as e:
+                logger.error(f"Handler error for {event_type}: {e}")
+
+        if event_type in self._handlers:
+            for handler in self._handlers[event_type]:
+                try:
+                    handler(event)
+                except Exception as e:
+                    logger.error(f"Handler error for {event_type}: {e}")
+
     def emit(
         self,
-        event_type: EventType,
+        event_type: EventType | Event,
         data: dict[str, Any] | None = None,
         source: str = "projektor",
     ) -> Event:
@@ -189,31 +205,21 @@ class EventBus:
         Returns:
             Wyemitowane zdarzenie
         """
-        event = Event(type=event_type, data=data or {}, source=source)
+        if isinstance(event_type, Event):
+            event = event_type
+        else:
+            event = Event(type=event_type, data=data or {}, source=source)
 
         # Zapisz w historii
         self._add_to_history(event)
 
-        # Wywołaj globalne handlery
-        for handler in self._global_handlers:
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error(f"Handler error for {event_type}: {e}")
-
-        # Wywołaj handlery dla typu
-        if event_type in self._handlers:
-            for handler in self._handlers[event_type]:
-                try:
-                    handler(event)
-                except Exception as e:
-                    logger.error(f"Handler error for {event_type}: {e}")
+        self._dispatch_event(event)
 
         return event
 
     async def emit_async(
         self,
-        event_type: EventType,
+        event_type: EventType | Event,
         data: dict[str, Any] | None = None,
         source: str = "projektor",
     ) -> Event:
@@ -228,28 +234,32 @@ class EventBus:
         Returns:
             Wyemitowane zdarzenie
         """
-        event = Event(type=event_type, data=data or {}, source=source)
+        if isinstance(event_type, Event):
+            event = event_type
+        else:
+            event = Event(type=event_type, data=data or {}, source=source)
 
         # Zapisz w historii
         self._add_to_history(event)
 
-        # Wywołaj synchroniczne handlery
-        self.emit(event_type, data, source)
+        self._dispatch_event(event)
+
+        real_event_type = event.type
 
         # Wywołaj asynchroniczne globalne handlery
         for handler in self._async_global_handlers:
             try:
                 await handler(event)
             except Exception as e:
-                logger.error(f"Async handler error for {event_type}: {e}")
+                logger.error(f"Async handler error for {real_event_type}: {e}")
 
         # Wywołaj asynchroniczne handlery dla typu
-        if event_type in self._async_handlers:
-            for handler in self._async_handlers[event_type]:
+        if real_event_type in self._async_handlers:
+            for handler in self._async_handlers[real_event_type]:
                 try:
                     await handler(event)
                 except Exception as e:
-                    logger.error(f"Async handler error for {event_type}: {e}")
+                    logger.error(f"Async handler error for {real_event_type}: {e}")
 
         return event
 

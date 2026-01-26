@@ -6,6 +6,7 @@ Koordynuje pracę między LLM, wykonawcami kodu i systemem DevOps.
 
 from __future__ import annotations
 
+import os
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -134,6 +135,13 @@ class Orchestrator:
             max_iterations: Maksymalna liczba iteracji
             dry_run: Tryb testowy (bez zmian)
         """
+        if model == "openrouter/x-ai/grok-3-fast":
+            env_model = os.environ.get("OPENROUTER_MODEL")
+            if env_model:
+                if not env_model.startswith("openrouter/"):
+                    env_model = f"openrouter/{env_model}"
+                model = env_model
+
         self.project = project
         self.model = model
         self.auto_commit = auto_commit

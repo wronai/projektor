@@ -87,7 +87,12 @@ pip install projektor[all]
 ### Konfiguracja
 
 ```bash
-# Ustaw klucz API dla LLM
+# (Rekomendowane) Skopiuj przykład i uzupełnij wartości
+cp .env.example .env
+
+# Następnie uzupełnij .env (OPENROUTER_API_KEY, OPENROUTER_MODEL, itp.)
+
+# Alternatywnie możesz ustawić klucz API w shellu
 export OPENROUTER_API_KEY="your-key"
 # lub
 export OPENAI_API_KEY="your-key"
@@ -409,7 +414,7 @@ Projektor śledzi:
 
 ## 📄 Licencja
 
-MIT License - zobacz [LICENSE](LICENSE)
+Apache 2.0 License - zobacz [LICENSE](LICENSE)
 
 ## 🙏 Podziękowania
 

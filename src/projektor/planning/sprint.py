@@ -97,6 +97,8 @@ class Sprint:
     # Tickets
     tickets: list[str] = field(default_factory=list)
 
+    ticket_points: dict[str, int] = field(default_factory=dict)
+
     # Metrics
     metrics: SprintMetrics = field(default_factory=SprintMetrics)
 
@@ -120,28 +122,37 @@ class Sprint:
 
     def add_ticket(self, ticket_id: str, points: int = 0) -> None:
         """Dodaj ticket do sprintu."""
-        if ticket_id not in self.tickets:
-            self.tickets.append(ticket_id)
-            self.metrics.total_tickets += 1
+        if ticket_id in self.tickets:
+            self.ticket_points[ticket_id] = points
+            return
 
-            if self.status == SprintStatus.ACTIVE:
-                self.metrics.added_points += points
-            else:
-                self.metrics.planned_points += points
+        self.tickets.append(ticket_id)
+        self.ticket_points[ticket_id] = points
+        self.metrics.total_tickets += 1
+
+        if self.status == SprintStatus.ACTIVE:
+            self.metrics.added_points += points
+        else:
+            self.metrics.planned_points += points
 
     def remove_ticket(self, ticket_id: str, points: int = 0) -> None:
         """Usuń ticket ze sprintu."""
         if ticket_id in self.tickets:
+            effective_points = points if points else self.ticket_points.get(ticket_id, 0)
             self.tickets.remove(ticket_id)
+            self.ticket_points.pop(ticket_id, None)
             self.metrics.total_tickets -= 1
 
             if self.status == SprintStatus.ACTIVE:
-                self.metrics.removed_points += points
+                self.metrics.removed_points += effective_points
+            else:
+                self.metrics.planned_points -= effective_points
 
     def complete_ticket(self, ticket_id: str, points: int = 0) -> None:
         """Oznacz ticket jako ukończony."""
         if ticket_id in self.tickets:
-            self.metrics.completed_points += points
+            effective_points = points if points else self.ticket_points.get(ticket_id, 0)
+            self.metrics.completed_points += effective_points
             self.metrics.completed_tickets += 1
 
     # ==================== Status Management ====================
@@ -187,6 +198,14 @@ class Sprint:
         return True
 
     # ==================== Properties ====================
+
+    @property
+    def total_points(self) -> int:
+        return sum(self.ticket_points.get(t, 0) for t in self.tickets)
+
+    @property
+    def completed_points(self) -> int:
+        return self.metrics.completed_points
 
     @property
     def is_active(self) -> bool:
@@ -236,6 +255,7 @@ class Sprint:
             "end_date": self.end_date.isoformat() if self.end_date else None,
             "status": self.status.value,
             "tickets": self.tickets,
+            "ticket_points": self.ticket_points,
             "metrics": self.metrics.to_dict(),
             "retrospective": self.retrospective,
             "created_at": self.created_at.isoformat(),
@@ -254,6 +274,7 @@ class Sprint:
             end_date=date.fromisoformat(data["end_date"]) if data.get("end_date") else None,
             status=SprintStatus(data.get("status", "planning")),
             tickets=data.get("tickets", []),
+            ticket_points=data.get("ticket_points", {}),
             metrics=SprintMetrics.from_dict(data.get("metrics", {})),
             retrospective=data.get("retrospective"),
             created_at=(

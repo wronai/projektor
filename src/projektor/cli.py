@@ -33,8 +33,22 @@ def cli(ctx, project: str, verbose: bool):
     Manage projects, tickets, sprints, and automated development workflows.
     """
     ctx.ensure_object(dict)
-    ctx.obj["project_path"] = Path(project).resolve()
+    project_path = Path(project).resolve()
+    if project_path.is_file():
+        project_path = project_path.parent
+    ctx.obj["project_path"] = project_path
     ctx.obj["verbose"] = verbose
+
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(override=False)
+
+        project_env = project_path / ".env"
+        if project_env.exists():
+            load_dotenv(dotenv_path=project_env, override=False)
+    except ImportError:
+        pass
 
 
 # ==================== Project Commands ====================

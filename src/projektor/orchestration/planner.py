@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -190,6 +191,29 @@ Skup się na:
         temperature: float = 0.1,
         max_tokens: int = 4000,
     ):
+        if model == "openrouter/x-ai/grok-3-fast":
+            env_model = os.environ.get("OPENROUTER_MODEL")
+            if env_model:
+                if not env_model.startswith("openrouter/"):
+                    env_model = f"openrouter/{env_model}"
+                model = env_model
+
+        if temperature == 0.1:
+            env_temperature = os.environ.get("OPENROUTER_TEMPERATURE")
+            if env_temperature:
+                try:
+                    temperature = float(env_temperature)
+                except ValueError:
+                    pass
+
+        if max_tokens == 4000:
+            env_max_tokens = os.environ.get("OPENROUTER_MAX_TOKENS")
+            if env_max_tokens:
+                try:
+                    max_tokens = int(env_max_tokens)
+                except ValueError:
+                    pass
+
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens

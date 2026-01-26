@@ -28,6 +28,8 @@ PYTHON := python3
 PIP := pip3
 PYTEST := python3 -m pytest
 
+export PYTHONPATH := src
+
 # Colors for output
 GREEN := \033[0;32m
 YELLOW := \033[0;33m

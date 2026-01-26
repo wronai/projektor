@@ -25,6 +25,27 @@ class LLMConfig:
     api_base: str | None = None
 
     def __post_init__(self):
+        # Allow env overrides for default values
+        env_model = os.environ.get("OPENROUTER_MODEL")
+        if env_model and self.model == "openrouter/x-ai/grok-3-fast":
+            if not env_model.startswith("openrouter/"):
+                env_model = f"openrouter/{env_model}"
+            self.model = env_model
+
+        env_temperature = os.environ.get("OPENROUTER_TEMPERATURE")
+        if env_temperature and self.temperature == 0.1:
+            try:
+                self.temperature = float(env_temperature)
+            except ValueError:
+                pass
+
+        env_max_tokens = os.environ.get("OPENROUTER_MAX_TOKENS")
+        if env_max_tokens and self.max_tokens == 4000:
+            try:
+                self.max_tokens = int(env_max_tokens)
+            except ValueError:
+                pass
+
         # Pobierz klucz z environment jeśli nie podany
         if self.api_key is None:
             self.api_key = (
