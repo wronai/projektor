@@ -759,6 +759,9 @@ def work_logs(ctx, ticket_id: str | None, show: str | None, tail: int):
         "plan_tests": latest / "plan_tests.json",
         "plan_tests_stdout": latest / "plan_tests_stdout.txt",
         "plan_tests_stderr": latest / "plan_tests_stderr.txt",
+        "plan_test_command": latest / "plan_test_command.json",
+        "plan_test_command_stdout": latest / "plan_test_command_stdout.txt",
+        "plan_test_command_stderr": latest / "plan_test_command_stderr.txt",
         "result": latest / "result.json",
         "exception": latest / "exception.txt",
     }

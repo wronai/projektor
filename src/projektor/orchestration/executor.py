@@ -482,7 +482,30 @@ class PlanExecutor:
         ]
 
         cmd_lower = str(cmd).lower().strip()
-        if not any(cmd_lower.startswith(prefix) for prefix in safe_prefixes):
+
+        allowed_exact_command = None
+        try:
+            from projektor.core.config import Config
+
+            cfg = Config.load(self.project.root_path / "projektor.yaml")
+            if isinstance(getattr(cfg, "extensions", None), dict):
+                allowed_exact_command = cfg.extensions.get("test_command")
+        except Exception:
+            allowed_exact_command = None
+
+        normalized_allowed = (
+            str(allowed_exact_command).lower().strip()
+            if allowed_exact_command and str(allowed_exact_command).strip()
+            else None
+        )
+
+        is_allowed = False
+        if normalized_allowed and cmd_lower == normalized_allowed:
+            is_allowed = True
+        elif any(cmd_lower.startswith(prefix) for prefix in safe_prefixes):
+            is_allowed = True
+
+        if not is_allowed:
             step_result.error = f"Command not allowed: {cmd}"
             return
 
@@ -499,8 +522,12 @@ class PlanExecutor:
 
         step_result.output = stdout.decode() if stdout else None
 
+        if stderr:
+            step_result.error = stderr.decode(errors="replace")
+
         if proc.returncode != 0:
-            step_result.error = stderr.decode() if stderr else f"Exit code: {proc.returncode}"
+            if not step_result.error:
+                step_result.error = f"Exit code: {proc.returncode}"
         else:
             step_result.success = True
 

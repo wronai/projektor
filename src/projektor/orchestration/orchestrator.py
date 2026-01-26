@@ -284,14 +284,56 @@ class Orchestrator:
                 try:
                     from projektor.orchestration.planner import StepType
 
+                    test_command: str | None = None
+                    try:
+                        from projektor.core.config import Config
+
+                        cfg = Config.load(self.project.root_path / "projektor.yaml")
+                        if isinstance(getattr(cfg, "extensions", None), dict):
+                            test_command = cfg.extensions.get("test_command")
+                    except Exception:
+                        test_command = None
+
+                    normalized_test_command = (
+                        str(test_command).strip() if test_command and str(test_command).strip() else None
+                    )
+
                     step_by_number = {s.step_number: s for s in plan.steps}
                     stdout_parts: list[str] = []
                     stderr_parts: list[str] = []
                     test_steps: list[dict[str, Any]] = []
 
+                    cmd_stdout_parts: list[str] = []
+                    cmd_stderr_parts: list[str] = []
+                    cmd_steps: list[dict[str, Any]] = []
+
                     for sr in exec_result.step_results:
                         step = step_by_number.get(sr.step_number)
                         if not step or step.step_type != StepType.RUN_TESTS:
+                            if not step or step.step_type != StepType.RUN_COMMAND:
+                                continue
+
+                            if not normalized_test_command:
+                                continue
+
+                            cmd = (step.command or step.changes or "").strip()
+                            if cmd != normalized_test_command:
+                                continue
+
+                            cmd_steps.append(
+                                {
+                                    "step_number": sr.step_number,
+                                    "command": cmd,
+                                    "success": sr.success,
+                                }
+                            )
+
+                            header = f"\n===== plan test_command step {sr.step_number} ({cmd}) =====\n"
+                            if sr.output:
+                                cmd_stdout_parts.append(header + sr.output)
+                            if sr.error:
+                                cmd_stderr_parts.append(header + sr.error)
+
                             continue
 
                         test_steps.append(
@@ -314,6 +356,17 @@ class Orchestrator:
                         )
                         (run_dir / "plan_tests_stdout.txt").write_text("".join(stdout_parts))
                         (run_dir / "plan_tests_stderr.txt").write_text("".join(stderr_parts))
+
+                    if cmd_steps:
+                        (run_dir / "plan_test_command.json").write_text(
+                            json.dumps({"steps": cmd_steps}, indent=2)
+                        )
+                        (run_dir / "plan_test_command_stdout.txt").write_text(
+                            "".join(cmd_stdout_parts)
+                        )
+                        (run_dir / "plan_test_command_stderr.txt").write_text(
+                            "".join(cmd_stderr_parts)
+                        )
                 except Exception:
                     pass
 
@@ -335,7 +388,31 @@ class Orchestrator:
 
             plan_has_run_tests = any(s.step_type == StepType.RUN_TESTS for s in plan.steps)
 
-            if plan_has_run_tests:
+            plan_has_test_command = False
+            try:
+                from projektor.core.config import Config
+
+                cfg = Config.load(self.project.root_path / "projektor.yaml")
+                test_command = None
+                if isinstance(getattr(cfg, "extensions", None), dict):
+                    test_command = cfg.extensions.get("test_command")
+
+                normalized_test_command = (
+                    str(test_command).strip() if test_command and str(test_command).strip() else None
+                )
+
+                if normalized_test_command:
+                    for s in plan.steps:
+                        if s.step_type != StepType.RUN_COMMAND:
+                            continue
+                        cmd = (s.command or s.changes or "").strip()
+                        if cmd == normalized_test_command:
+                            plan_has_test_command = True
+                            break
+            except Exception:
+                plan_has_test_command = False
+
+            if plan_has_run_tests or plan_has_test_command:
                 logger.info(
                     f"[{ticket_id}] Plan contains run_tests step; skipping orchestrator test run"
                 )
