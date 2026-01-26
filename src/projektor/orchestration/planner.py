@@ -277,6 +277,28 @@ Skup się na:
             "",
         ]
 
+        # Add a bounded file list to avoid hallucinated paths
+        try:
+            ignore_dirnames = {".git", ".venv", "venv", "__pycache__", ".projektor"}
+            files: list[str] = []
+            for p in project.root_path.rglob("*.py"):
+                if any(part in ignore_dirnames for part in p.parts):
+                    continue
+                rel = p.relative_to(project.root_path).as_posix()
+                files.append(rel)
+                if len(files) >= 200:
+                    break
+
+            if files:
+                parts.append("# Dostępne pliki w projekcie (lista skrócona)")
+                parts.append("Używaj WYŁĄCZNIE ścieżek z tej listy jako target_file.")
+                parts.append("```")
+                parts.extend(files)
+                parts.append("```")
+                parts.append("")
+        except Exception:
+            pass
+
         # Add project structure if available
         if project.toon_file and project.toon_file.exists():
             parts.append("# Struktura projektu (TOON)")
