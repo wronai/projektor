@@ -154,6 +154,13 @@ extensions:
 
 Projektor automatycznie dopnie krok testów do planu, jeśli plan nie zawiera testów, a `extensions.test_command` jest ustawione.
 
+Wyniki tych testów są zapisywane w `.projektor/runs/...` i dostępne przez:
+
+```bash
+projektor work logs PROJ-1 --show plan_test_command_stdout
+projektor work logs PROJ-1 --show plan_test_command_stderr
+```
+
 ### Nieinwazyjne Monitorowanie Błędów
 
 ```python
@@ -282,10 +289,8 @@ projektor/
 │   ├── integration/
 │   └── e2e/
 ├── docs/
-│   ├── getting-started.md
-│   ├── configuration.md
-│   ├── api-reference.md
-│   └── examples/
+│   ├── cli.md
+│   └── integration.md
 ├── examples/
 │   ├── basic_usage.py
 │   ├── sprint_workflow.py

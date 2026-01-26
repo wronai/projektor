@@ -183,8 +183,8 @@ projektor work plan PROJ-1 --output plan.json
 
 Uwagi:
 
-- Jeśli `litellm` nie jest zainstalowane, planner użyje trybu awaryjnego (fallback) i plan będzie „szablonowy”.
-- Dla faktycznego LLM użyj: `pip install -e ".[llm]"` i skonfiguruj `.env`.
+- Planowanie przez LLM wymaga opcjonalnej zależności `litellm`.
+- Zainstaluj wsparcie LLM: `pip install -e ".[llm]"` i skonfiguruj `.env`.
 
 ### `work on`
 Wykonuje pracę nad ticketem (może modyfikować pliki, uruchamiać testy, wykonywać commity).

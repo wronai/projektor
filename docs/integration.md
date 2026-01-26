@@ -38,6 +38,35 @@ install()
 
 ---
 
+## Repozytoria nie-Python (JS/TS, Go)
+
+Jeśli używasz Projektora w repozytorium nie będącym Pythonem, testy mogą być uruchamiane jako krok `run_command` skonfigurowany w `projektor.yaml`.
+
+Przykład:
+
+```yaml
+orchestration:
+  run_tests: false
+
+extensions:
+  test_command: "npm test"  # albo: "make test"
+```
+
+Wyniki tego kroku są zapisywane w `.projektor/runs/<TICKET_timestamp>/` jako:
+
+- `plan_test_command.json`
+- `plan_test_command_stdout.txt`
+- `plan_test_command_stderr.txt`
+
+I można je podejrzeć przez CLI:
+
+```bash
+projektor work logs TICKET-1 --show plan_test_command_stdout
+projektor work logs TICKET-1 --show plan_test_command_stderr
+```
+
+---
+
 ## Metody Integracji
 
 ### 1. Automatyczna Instalacja (najprostsza)
