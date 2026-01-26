@@ -263,14 +263,22 @@ class Project:
             config = {}
 
         config["project"] = self.metadata.to_dict()
-        config.setdefault(
-            "orchestration",
-            {
-                "auto_commit": True,
-                "run_tests": True,
-                "max_iterations": 10,
-            },
-        )
+        default_run_tests = self.metadata.language == "python"
+        if self.metadata.language in {"javascript", "typescript", "go"}:
+            default_run_tests = False
+
+        if "orchestration" not in config or not isinstance(config.get("orchestration"), dict):
+            config["orchestration"] = {}
+        config["orchestration"].setdefault("auto_commit", True)
+        config["orchestration"].setdefault("run_tests", default_run_tests)
+        config["orchestration"].setdefault("max_iterations", 10)
+
+        if "extensions" not in config or not isinstance(config.get("extensions"), dict):
+            config["extensions"] = {}
+        if self.metadata.language in {"javascript", "typescript"}:
+            config["extensions"].setdefault("test_command", "npm test")
+        elif self.metadata.language == "go":
+            config["extensions"].setdefault("test_command", "make test")
         config.setdefault(
             "targets",
             {
