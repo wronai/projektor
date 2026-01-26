@@ -257,6 +257,11 @@ Skup się na:
             plan = self._parse_response(response)
             plan.model_used = self.model
 
+            try:
+                self._maybe_append_test_command_step(plan, project)
+            except Exception:
+                pass
+
             return plan
 
         except Exception as e:
@@ -340,6 +345,53 @@ Skup się na:
         parts.append("Wygeneruj plan implementacji w formacie JSON.")
 
         return "\n".join(parts)
+
+    def _maybe_append_test_command_step(self, plan: TaskPlan, project: Project) -> None:
+        from projektor.core.config import Config
+
+        if not plan.success:
+            return
+
+        language = getattr(getattr(project, "metadata", None), "language", "python")
+        if language == "python":
+            return
+
+        cfg = Config.load(project.root_path / "projektor.yaml")
+        test_command = None
+        try:
+            if isinstance(cfg.extensions, dict):
+                test_command = cfg.extensions.get("test_command")
+        except Exception:
+            test_command = None
+
+        if not test_command or not str(test_command).strip():
+            return
+
+        from projektor.orchestration.planner import StepType
+
+        normalized = str(test_command).strip()
+        for s in plan.steps:
+            if s.step_type == StepType.RUN_TESTS:
+                return
+            if s.step_type == StepType.RUN_COMMAND:
+                cmd = s.command or s.changes
+                if cmd and str(cmd).strip() == normalized:
+                    return
+
+        next_step_number = 1
+        if plan.steps:
+            next_step_number = max(s.step_number for s in plan.steps) + 1
+
+        plan.steps.append(
+            PlanStep(
+                step_number=next_step_number,
+                step_type=StepType.RUN_COMMAND,
+                description=f"Run tests: {normalized}",
+                command=normalized,
+                rationale="Verify changes",
+                estimated_complexity="low",
+            )
+        )
 
     async def _call_llm(self, prompt: str) -> str:
         """Call LLM API."""
