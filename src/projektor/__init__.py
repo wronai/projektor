@@ -41,6 +41,39 @@ from projektor.planning.milestone import Milestone
 from projektor.planning.roadmap import Goal, Roadmap
 from projektor.planning.sprint import Sprint, create_sprint
 
+# Integration
+from projektor.integration import (
+    # Install API (główne)
+    install,
+    uninstall,
+    is_installed,
+    get_handler,
+    load_config,
+    # Decorators
+    track_errors,
+    track_async_errors,
+    catch_errors,
+    catch_async_errors,
+    # Context managers
+    ErrorTracker,
+    projektor_guard,
+    # Error handling
+    ErrorHandler,
+    install_global_handler,
+    uninstall_global_handler,
+    # Hooks
+    Hook,
+    HookType,
+    Hooks,
+    on_error,
+    on_start,
+    on_success,
+    # Config
+    IntegrationConfig,
+    load_integration_config,
+    load_from_pyproject,
+)
+
 __all__ = [
     # Version
     "__version__",
@@ -78,4 +111,33 @@ __all__ = [
     "MetricsCollector",
     "ProjectMetrics",
     "ReportGenerator",
+    # Integration - Install API
+    "install",
+    "uninstall",
+    "is_installed",
+    "get_handler",
+    "load_config",
+    # Integration - Decorators
+    "track_errors",
+    "track_async_errors",
+    "catch_errors",
+    "catch_async_errors",
+    # Integration - Context managers
+    "ErrorTracker",
+    "projektor_guard",
+    # Integration - Error handling
+    "ErrorHandler",
+    "install_global_handler",
+    "uninstall_global_handler",
+    # Integration - Hooks
+    "Hook",
+    "HookType",
+    "Hooks",
+    "on_error",
+    "on_start",
+    "on_success",
+    # Integration - Config
+    "IntegrationConfig",
+    "load_integration_config",
+    "load_from_pyproject",
 ]

@@ -254,18 +254,30 @@ class Project:
 
         # Zapisz projektor.yaml
         config_file = self.root_path / self.CONFIG_FILE
-        config = {
-            "project": self.metadata.to_dict(),
-            "orchestration": {
+        if config_file.exists():
+            with open(config_file) as f:
+                config = yaml.safe_load(f) or {}
+            if not isinstance(config, dict):
+                config = {}
+        else:
+            config = {}
+
+        config["project"] = self.metadata.to_dict()
+        config.setdefault(
+            "orchestration",
+            {
                 "auto_commit": True,
                 "run_tests": True,
                 "max_iterations": 10,
             },
-            "targets": {
+        )
+        config.setdefault(
+            "targets",
+            {
                 "max_complexity": 15,
                 "min_coverage": 85,
             },
-        }
+        )
 
         with open(config_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
@@ -276,6 +288,9 @@ class Project:
 
         with open(state_file, "w") as f:
             json.dump(self.state.to_dict(), f, indent=2)
+
+        for ticket in self._tickets.values():
+            self._save_ticket(ticket)
 
     # ==================== Tickets ====================
 

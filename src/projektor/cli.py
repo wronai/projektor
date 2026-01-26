@@ -24,6 +24,33 @@ def run_async(coro):
     return asyncio.run(coro)
 
 
+def _sync_ticket_state(project, ticket):
+    from projektor.core.ticket import TicketStatus
+
+    tid = ticket.id
+
+    if ticket.status in (TicketStatus.DONE, TicketStatus.CANCELLED):
+        if tid in project.state.active_tickets:
+            project.state.active_tickets.remove(tid)
+        if tid in project.state.blocked_tickets:
+            project.state.blocked_tickets.remove(tid)
+        if ticket.status == TicketStatus.DONE and tid not in project.state.completed_tickets:
+            project.state.completed_tickets.append(tid)
+        return
+
+    if tid not in project.state.active_tickets:
+        project.state.active_tickets.append(tid)
+    if tid in project.state.completed_tickets:
+        project.state.completed_tickets.remove(tid)
+
+    if ticket.status == TicketStatus.BLOCKED:
+        if tid not in project.state.blocked_tickets:
+            project.state.blocked_tickets.append(tid)
+    else:
+        if tid in project.state.blocked_tickets:
+            project.state.blocked_tickets.remove(tid)
+
+
 @click.group()
 @click.option("--project", "-p", type=click.Path(exists=True), default=".", help="Project path")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
@@ -184,6 +211,132 @@ def project_status(ctx):
 def ticket():
     """Ticket management commands."""
     pass
+
+
+@ticket.command("assign")
+@click.argument("ticket_id")
+@click.option("--assignee", "-a", default=None, help="Assignee name (empty to unassign)")
+@click.pass_context
+def ticket_assign(ctx, ticket_id: str, assignee: str | None):
+    """Assign/unassign a ticket."""
+    from projektor.core.project import Project
+
+    path = ctx.obj["project_path"]
+
+    try:
+        project = Project.load(path)
+        ticket = project.get_ticket(ticket_id)
+
+        if not ticket:
+            console.print(f"[red]✗[/red] Ticket {ticket_id} not found")
+            sys.exit(1)
+
+        ticket.assignee = assignee or None
+        _sync_ticket_state(project, ticket)
+        project.save()
+
+        console.print(
+            f"[green]✓[/green] Assigned [cyan]{ticket_id}[/cyan] to {ticket.assignee or 'Unassigned'}"
+        )
+
+    except Exception as e:
+        console.print(f"[red]✗[/red] {e}")
+        sys.exit(1)
+
+
+@ticket.command("update")
+@click.argument("ticket_id")
+@click.option(
+    "--status",
+    "-s",
+    default=None,
+    type=click.Choice(
+        [
+            "backlog",
+            "todo",
+            "in_progress",
+            "in_review",
+            "testing",
+            "done",
+            "blocked",
+            "cancelled",
+        ]
+    ),
+    help="New status",
+)
+@click.option("--assignee", "-a", default=None, help="Assignee name")
+@click.pass_context
+def ticket_update(ctx, ticket_id: str, status: str | None, assignee: str | None):
+    """Update ticket fields (status/assignee)."""
+    from projektor.core.project import Project
+    from projektor.core.ticket import TicketStatus
+
+    path = ctx.obj["project_path"]
+
+    try:
+        project = Project.load(path)
+        ticket = project.get_ticket(ticket_id)
+
+        if not ticket:
+            console.print(f"[red]✗[/red] Ticket {ticket_id} not found")
+            sys.exit(1)
+
+        if assignee is not None:
+            ticket.assignee = assignee or None
+
+        if status is not None:
+            desired = TicketStatus(status)
+
+            if desired == TicketStatus.IN_PROGRESS:
+                if ticket.status == TicketStatus.BACKLOG:
+                    ticket.transition_to(TicketStatus.TODO)
+                ok = ticket.start()
+                if not ok:
+                    console.print(
+                        f"[red]✗[/red] Cannot set status to in_progress from: {ticket.status.value}"
+                    )
+                    sys.exit(1)
+            elif desired == TicketStatus.DONE:
+                if ticket.status == TicketStatus.BACKLOG:
+                    ticket.transition_to(TicketStatus.TODO)
+                if ticket.status == TicketStatus.TODO:
+                    ticket.transition_to(TicketStatus.IN_PROGRESS)
+                if ticket.status == TicketStatus.IN_PROGRESS:
+                    ticket.transition_to(TicketStatus.IN_REVIEW)
+                if ticket.status == TicketStatus.IN_REVIEW:
+                    ticket.transition_to(TicketStatus.TESTING)
+
+                ok = ticket.complete()
+                if not ok:
+                    console.print(
+                        f"[red]✗[/red] Cannot set status to done from: {ticket.status.value}"
+                    )
+                    sys.exit(1)
+            elif desired == TicketStatus.BLOCKED:
+                ok = ticket.block()
+                if not ok:
+                    console.print(
+                        f"[red]✗[/red] Cannot set status to blocked from: {ticket.status.value}"
+                    )
+                    sys.exit(1)
+            else:
+                ok = ticket.transition_to(desired)
+                if not ok:
+                    console.print(
+                        f"[red]✗[/red] Invalid status transition: {ticket.status.value} -> {desired.value}"
+                    )
+                    sys.exit(1)
+
+        _sync_ticket_state(project, ticket)
+        project.save()
+
+        console.print(
+            f"[green]✓[/green] Updated [cyan]{ticket_id}[/cyan] (status={ticket.status.value}, assignee={ticket.assignee or 'Unassigned'})"
+        )
+
+    except Exception as e:
+        console.print(f"[red]✗[/red] {e}")
+        sys.exit(1)
 
 
 @ticket.command("create")
@@ -358,6 +511,8 @@ def ticket_start(ctx, ticket_id: str):
             )
             sys.exit(1)
 
+        _sync_ticket_state(project, ticket)
+
         project.save()
 
         console.print(f"[green]✓[/green] Started work on [cyan]{ticket_id}[/cyan]")
@@ -406,6 +561,8 @@ def ticket_complete(ctx, ticket_id: str):
                 f"[red]✗[/red] Cannot complete ticket {ticket_id} from status: {ticket.status.value}"
             )
             sys.exit(1)
+
+        _sync_ticket_state(project, ticket)
 
         project.save()
 
@@ -466,8 +623,9 @@ def work():
 @click.option("--dry-run", is_flag=True, help="Don't make changes")
 @click.option("--no-commit", is_flag=True, help="Don't auto-commit")
 @click.option("--no-tests", is_flag=True, help="Skip tests")
+@click.option("--auto-fix", is_flag=True, help="Enable auto-fix mode (use LLM to fix errors)")
 @click.pass_context
-def work_on(ctx, ticket_id: str, dry_run: bool, no_commit: bool, no_tests: bool):
+def work_on(ctx, ticket_id: str, dry_run: bool, no_commit: bool, no_tests: bool, auto_fix: bool):
     """Work on a ticket using LLM orchestration."""
     from projektor.core.project import Project
     from projektor.orchestration.orchestrator import Orchestrator
@@ -510,7 +668,10 @@ def work_on(ctx, ticket_id: str, dry_run: bool, no_commit: bool, no_tests: bool)
         if dry_run_effective:
             console.print("[yellow]DRY RUN - no changes will be made[/yellow]")
 
-        result = run_async(orchestrator.work_on_ticket(ticket_id))
+        if auto_fix:
+            console.print("[green]AUTO-FIX enabled - will attempt to fix errors automatically[/green]")
+
+        result = run_async(orchestrator.work_on_ticket(ticket_id, context={"auto_fix": auto_fix}))
 
         # Display result
         if result.status.value == "completed":
@@ -704,6 +865,420 @@ def git_log(ctx, count: int):
     except Exception as e:
         console.print(f"[red]✗[/red] {e}")
         sys.exit(1)
+
+
+# ==================== Integration Commands ====================
+
+
+@cli.group()
+def integrate():
+    """Integration and error handling commands."""
+    pass
+
+
+@integrate.command("init")
+@click.option("--auto-fix", is_flag=True, help="Enable auto-fix for errors")
+@click.option("--global-handler", is_flag=True, help="Install global exception handler")
+@click.option("--format", "-f", "output_format", default="yaml", type=click.Choice(["yaml", "toml"]))
+@click.pass_context
+def integrate_init(ctx, auto_fix: bool, global_handler: bool, output_format: str):
+    """Initialize projektor integration in a project.
+
+    This adds configuration to projektor.yaml or pyproject.toml
+    for automatic error tracking and bug ticket creation.
+    """
+    from projektor.integration.config_loader import IntegrationConfig, save_integration_config
+
+    path = ctx.obj["project_path"]
+
+    config = IntegrationConfig(
+        enabled=True,
+        global_handler=global_handler,
+        auto_fix=auto_fix,
+        default_labels=["projektor", "auto-reported"],
+    )
+
+    if output_format == "yaml":
+        target = path / "projektor.yaml"
+    else:
+        target = path / "pyproject.toml"
+
+    save_integration_config(config, target, format=output_format)
+
+    console.print(f"[green]✓[/green] Integration initialized in {target}")
+    console.print(f"  Auto-fix: {'enabled' if auto_fix else 'disabled'}")
+    console.print(f"  Global handler: {'enabled' if global_handler else 'disabled'}")
+
+    console.print("\n[bold]Usage in your code:[/bold]")
+    console.print("  from projektor.integration import catch_errors, projektor_guard")
+    console.print("")
+    console.print("  # As decorator")
+    console.print("  @catch_errors(auto_fix=True)")
+    console.print("  def my_function():")
+    console.print("      ...")
+    console.print("")
+    console.print("  # As context manager")
+    console.print("  with projektor_guard():")
+    console.print("      risky_operation()")
+
+    if global_handler:
+        console.print("")
+        console.print("  # Global handler (add to main.py)")
+        console.print("  from projektor.integration import install_global_handler")
+        console.print("  install_global_handler()")
+
+
+@integrate.command("status")
+@click.pass_context
+def integrate_status(ctx):
+    """Show integration status."""
+    from projektor.integration.config_loader import load_integration_config
+
+    path = ctx.obj["project_path"]
+
+    config = load_integration_config(path)
+
+    console.print(Panel(
+        f"[bold]Integration Status[/bold]\n\n"
+        f"Enabled: {'[green]Yes[/green]' if config.enabled else '[red]No[/red]'}\n"
+        f"Global handler: {'[green]Yes[/green]' if config.global_handler else '[dim]No[/dim]'}\n"
+        f"Auto-fix: {'[green]Yes[/green]' if config.auto_fix else '[dim]No[/dim]'}\n"
+        f"Priority: {config.priority}\n"
+        f"Labels: {', '.join(config.default_labels) or 'none'}",
+        title="Projektor Integration",
+    ))
+
+    if config.workflows:
+        console.print("\n[bold]Workflows:[/bold]")
+        for wf in config.workflows:
+            status = "[green]✓[/green]" if wf.enabled else "[dim]✗[/dim]"
+            console.print(f"  {status} {wf.name} ({wf.trigger})")
+
+
+@integrate.command("add-workflow")
+@click.argument("name")
+@click.option("--trigger", "-t", default="on_error",
+              type=click.Choice(["on_error", "on_test_fail", "on_commit", "on_start", "on_success"]))
+@click.option("--auto-fix", is_flag=True, help="Enable auto-fix")
+@click.option("--label", "-l", "labels", multiple=True, help="Labels to add")
+@click.pass_context
+def integrate_add_workflow(ctx, name: str, trigger: str, auto_fix: bool, labels: tuple):
+    """Add a workflow to integration config."""
+    from projektor.integration.config_loader import (
+        WorkflowConfig,
+        load_integration_config,
+        save_integration_config,
+    )
+
+    path = ctx.obj["project_path"]
+
+    config = load_integration_config(path)
+
+    workflow = WorkflowConfig(
+        name=name,
+        trigger=trigger,
+        auto_fix=auto_fix,
+        labels=list(labels) if labels else [],
+    )
+
+    config.workflows.append(workflow)
+
+    target = path / "projektor.yaml"
+    save_integration_config(config, target, format="yaml")
+
+    console.print(f"[green]✓[/green] Added workflow '{name}'")
+    console.print(f"  Trigger: {trigger}")
+    console.print(f"  Auto-fix: {'enabled' if auto_fix else 'disabled'}")
+
+
+@integrate.command("report-error")
+@click.argument("message")
+@click.option("--file", "-f", "file_path", help="File where error occurred")
+@click.option("--line", "-l", "line_num", type=int, help="Line number")
+@click.option("--priority", "-p", default="high",
+              type=click.Choice(["critical", "high", "medium", "low"]))
+@click.option("--auto-fix", is_flag=True, help="Attempt automatic fix")
+@click.pass_context
+def integrate_report_error(ctx, message: str, file_path: str | None, line_num: int | None,
+                           priority: str, auto_fix: bool):
+    """Manually report an error as a bug ticket.
+
+    Example:
+        projektor integrate report-error "Database connection fails" -f src/db.py -l 42
+    """
+    from projektor.core.project import Project
+    from projektor.core.ticket import Priority, Ticket, TicketType
+
+    path = ctx.obj["project_path"]
+
+    try:
+        project = Project.load(path)
+    except Exception:
+        from projektor.core.project import Project
+        project = Project.init(path)
+
+    existing = project.list_tickets()
+    prefix = project.metadata.name[:4].upper() if project.metadata.name else "BUG"
+    ticket_id = f"{prefix}-{len(existing) + 1}"
+
+    description = f"## Error Report\n\n**Message:** {message}\n"
+    if file_path:
+        description += f"\n**File:** `{file_path}`"
+        if line_num:
+            description += f":{line_num}"
+    description += "\n\n**Reported via:** CLI"
+
+    ticket = Ticket(
+        id=ticket_id,
+        title=f"[Error] {message[:80]}",
+        description=description,
+        type=TicketType.BUG,
+        priority=Priority(priority),
+        labels=["error-report", "cli-reported"],
+    )
+
+    if file_path:
+        ticket.affected_files.append(file_path)
+
+    project.add_ticket(ticket)
+    project.save()
+
+    console.print(f"[green]✓[/green] Created bug ticket [cyan]{ticket_id}[/cyan]")
+    console.print(f"  Title: {ticket.title}")
+    console.print(f"  Priority: {priority}")
+
+    if auto_fix:
+        console.print("\n[bold]Starting auto-fix...[/bold]")
+        ctx.invoke(work_on, ticket_id=ticket_id, dry_run=False, no_commit=False, no_tests=False)
+
+
+# ==================== Top-level Commands ====================
+
+
+@cli.command("init")
+@click.argument("name", required=False)
+@click.option("--language", "-l", default="python", help="Project language")
+@click.pass_context
+def init_project(ctx, name: str | None, language: str):
+    """Initialize projektor in current directory.
+
+    This is a shortcut for 'projektor project init'.
+    """
+    from projektor.core.project import Project
+
+    path = ctx.obj["project_path"]
+    project_name = name or path.name
+
+    try:
+        Project.init(
+            path=path,
+            name=project_name,
+            language=language,
+        )
+
+        console.print(f"[green]✓[/green] Projektor initialized in {path}")
+        console.print(f"  Project: {project_name}")
+        console.print(f"  Config: {path / 'projektor.yaml'}")
+        console.print("\n[bold]Next steps:[/bold]")
+        console.print("  1. Add to your code: from projektor import install; install()")
+        console.print("  2. Or use CLI: projektor integrate init --global-handler")
+
+    except Exception as e:
+        console.print(f"[red]✗[/red] {e}")
+        sys.exit(1)
+
+
+@cli.command("watch")
+@click.option("--paths", "-p", multiple=True, help="Paths to watch")
+@click.pass_context
+def watch_files(ctx):
+    """Watch files for changes and syntax errors.
+
+    Monitors source files and reports syntax errors immediately.
+    """
+    from projektor.integration.config_loader import load_integration_config
+
+    path = ctx.obj["project_path"]
+    config = load_integration_config(path)
+
+    watch_paths = config.watch_paths or ["src", "tests"]
+
+    console.print(f"[bold]Watching for changes in:[/bold]")
+    for wp in watch_paths:
+        console.print(f"  - {wp}")
+
+    console.print("\n[dim]Press Ctrl+C to stop[/dim]\n")
+
+    try:
+        import time
+        from pathlib import Path
+
+        # Simple polling-based watcher (watchdog would be better)
+        last_modified = {}
+
+        while True:
+            for watch_path in watch_paths:
+                full_path = path / watch_path
+                if not full_path.exists():
+                    continue
+
+                for py_file in full_path.rglob("*.py"):
+                    # Skip ignored patterns
+                    skip = False
+                    for pattern in config.ignore_patterns:
+                        if pattern.replace("*", "") in str(py_file):
+                            skip = True
+                            break
+                    if skip:
+                        continue
+
+                    try:
+                        mtime = py_file.stat().st_mtime
+                        if str(py_file) in last_modified:
+                            if mtime > last_modified[str(py_file)]:
+                                # File changed - check syntax
+                                console.print(f"[dim]Changed: {py_file.relative_to(path)}[/dim]")
+                                _check_syntax(py_file)
+                        last_modified[str(py_file)] = mtime
+                    except Exception:
+                        pass
+
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stopped watching[/dim]")
+
+
+def _check_syntax(file_path):
+    """Check Python file syntax."""
+    import ast
+
+    try:
+        with open(file_path) as f:
+            source = f.read()
+        ast.parse(source)
+    except SyntaxError as e:
+        console.print(f"[red]✗ Syntax error:[/red] {file_path}")
+        console.print(f"  Line {e.lineno}: {e.msg}")
+
+        # Try to create ticket
+        try:
+            from projektor.integration.installer import get_handler, is_installed
+
+            if is_installed():
+                handler = get_handler()
+                if handler:
+                    from projektor.integration.error_handler import ErrorReport
+                    report = ErrorReport(
+                        exception_type="SyntaxError",
+                        message=e.msg or "Syntax error",
+                        traceback_str=str(e),
+                        file_path=str(file_path),
+                        line_number=e.lineno,
+                    )
+                    ticket = handler.create_bug_ticket(report)
+                    console.print(f"  [cyan]Ticket created: {ticket.id}[/cyan]")
+        except Exception:
+            pass
+
+
+@cli.command("errors")
+@click.option("--count", "-n", default=10, help="Number of errors to show")
+@click.option("--file", "-f", "log_file", help="Error log file")
+@click.pass_context
+def show_errors(ctx, count: int, log_file: str | None):
+    """Show recent errors from log file."""
+    from projektor.integration.config_loader import load_integration_config
+
+    path = ctx.obj["project_path"]
+    config = load_integration_config(path)
+
+    error_log = Path(log_file) if log_file else path / config.report_file
+
+    if not error_log.exists():
+        console.print(f"[dim]No error log found at {error_log}[/dim]")
+        console.print("[dim]Errors will appear here after they occur.[/dim]")
+        return
+
+    try:
+        with open(error_log) as f:
+            content = f.read()
+
+        # Split by separator
+        errors = content.split("=" * 60)
+        errors = [e.strip() for e in errors if e.strip()]
+
+        if not errors:
+            console.print("[green]No errors recorded[/green]")
+            return
+
+        console.print(f"[bold]Last {min(count, len(errors))} errors:[/bold]\n")
+
+        for error in errors[-count:]:
+            # Extract first few lines
+            lines = error.split("\n")[:5]
+            for line in lines:
+                if "ERROR" in line or "Error" in line:
+                    console.print(f"[red]{line}[/red]")
+                elif "Time:" in line or "Location:" in line:
+                    console.print(f"[dim]{line}[/dim]")
+                else:
+                    console.print(line)
+            console.print()
+
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error reading log: {e}")
+
+
+@cli.command("status")
+@click.pass_context
+def show_status(ctx):
+    """Show projektor status for current project."""
+    from projektor.integration.config_loader import load_integration_config
+
+    path = ctx.obj["project_path"]
+
+    # Check if projektor.yaml exists
+    config_file = path / "projektor.yaml"
+    pyproject_file = path / "pyproject.toml"
+
+    console.print("[bold]Projektor Status[/bold]\n")
+
+    if config_file.exists():
+        console.print(f"[green]✓[/green] Config: {config_file}")
+    elif pyproject_file.exists():
+        console.print(f"[green]✓[/green] Config: {pyproject_file} [tool.projektor]")
+    else:
+        console.print("[yellow]![/yellow] No projektor config found")
+        console.print("  Run: projektor init")
+        return
+
+    # Load and show config
+    config = load_integration_config(path)
+
+    console.print(f"\n[bold]Integration:[/bold]")
+    console.print(f"  Enabled: {'[green]Yes[/green]' if config.enabled else '[red]No[/red]'}")
+    console.print(f"  Global handler: {'[green]Yes[/green]' if config.global_handler else '[dim]No[/dim]'}")
+    console.print(f"  Auto-fix: {'[green]Yes[/green]' if config.auto_fix else '[dim]No[/dim]'}")
+
+    if config.workflows:
+        console.print(f"\n[bold]Workflows:[/bold]")
+        for wf in config.workflows:
+            status = "[green]✓[/green]" if wf.enabled else "[dim]✗[/dim]"
+            console.print(f"  {status} {wf.name} ({wf.trigger})")
+
+    # Check .projektor directory
+    projektor_dir = path / ".projektor"
+    if projektor_dir.exists():
+        tickets_dir = projektor_dir / "tickets"
+        if tickets_dir.exists():
+            ticket_count = len(list(tickets_dir.glob("*.json")))
+            console.print(f"\n[bold]Tickets:[/bold] {ticket_count}")
+
+        error_log = path / config.report_file
+        if error_log.exists():
+            size = error_log.stat().st_size
+            console.print(f"[bold]Error log:[/bold] {size} bytes")
 
 
 def main():

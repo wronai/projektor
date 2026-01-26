@@ -45,6 +45,13 @@ Projektor to framework do automatycznego zarządzania projektami programistyczny
 
 ## ✨ Funkcjonalności
 
+### 🛡️ Monitorowanie Błędów (Nieinwazyjne)
+- **Automatyczne przechwytywanie** - globalny exception handler
+- **Monitorowanie plików** - wykrywanie błędów składni przy zapisie
+- **Integracja z pytest** - automatyczne raportowanie błędów testów
+- **Wielopoziomowe raportowanie** - konsola, plik, GitHub Issues
+- **Auto-fix z LLM** - automatyczna naprawa błędów
+
 ### 🎫 Zarządzanie Projektami
 - **Tickets** - Tworzenie, śledzenie i realizacja zadań
 - **Roadmap** - Planowanie długoterminowe z wizją projektu
@@ -101,23 +108,62 @@ export OPENAI_API_KEY="your-key"
 ### Użycie CLI
 
 ```bash
-# Pełna dokumentacja CLI
-# zobacz: docs/cli.md
-
 # Inicjalizacja projektu
-projektor --project /path/to/project project init "my-project" --language python
-
-# Tworzenie ticketu
-projektor --project /path/to/project ticket create "Dodaj obsługę cache Redis" --priority high
-
-# Realizacja ticketu (LLM + DevOps)
-projektor --project /path/to/project work on PROJ-42
-
-# Wygenerowanie planu (bez wykonywania)
-projektor --project /path/to/project work plan PROJ-42 --output plan.json
+projektor init
 
 # Status projektu
-projektor --project /path/to/project project status
+projektor status
+
+# Monitorowanie plików (file watcher)
+projektor watch
+
+# Wyświetl ostatnie błędy
+projektor errors -n 10
+
+# Tworzenie ticketu
+projektor ticket create "Dodaj obsługę cache Redis" --priority high
+
+# Realizacja ticketu (LLM + DevOps)
+projektor work on PROJ-42
+
+# Testy z trackingiem błędów
+projektor test run --coverage
+```
+
+### Nieinwazyjne Monitorowanie Błędów
+
+```python
+# Najprostsza integracja - w __init__.py projektu:
+from projektor import install
+install()
+
+# To wszystko! Błędy będą automatycznie przechwytywane.
+```
+
+Lub selektywnie z dekoratorami:
+
+```python
+from projektor import track_errors, track_async_errors
+
+@track_errors
+def process_data(data):
+    return transform(data)
+
+@track_async_errors(context={"component": "api"})
+async def fetch_data(url):
+    return await http_get(url)
+```
+
+Lub z context managerem:
+
+```python
+from projektor import ErrorTracker
+
+with ErrorTracker(reraise=False) as tracker:
+    result = risky_operation()
+
+if tracker.had_error:
+    print(f"Error logged: {tracker.ticket.id}")
 ```
 
 ### Użycie jako biblioteka

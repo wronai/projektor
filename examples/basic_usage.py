@@ -213,7 +213,8 @@ def demo_roadmap():
     for milestone in roadmap.milestones:
         print(f"   • {milestone.name}")
         print(f"     Deadline: {milestone.deadline.strftime('%Y-%m-%d')}")
-        print(f"     Progress: {milestone.progress:.0f}%")
+        print(f"     Tickets: {len(milestone.tickets)}")
+        print(f"     Completed: {milestone.completed}")
         print(f"     Days remaining: {milestone.days_remaining}")
     
     print(f"\n📈 Overall Progress: {roadmap.progress:.1f}%")

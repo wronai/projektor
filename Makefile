@@ -28,7 +28,7 @@ PYTHON := python3
 PIP := pip3
 PYTEST := python3 -m pytest
 VENV_PYTHON := $(PYTHON)
-VENV_PIP := $(PIP)
+VENV_PIP := /home/tom/github/wronai/projektor/venv/bin/pip
 VENV_TWINE := /home/tom/github/wronai/projektor/venv/bin/twine
 
 export PYTHONPATH := src
@@ -62,13 +62,13 @@ help: ## Show this help message
 # =============================================================================
 
 install: ## Install package in development mode
-	$(PIP) install -e ".[dev]" --break-system-packages
+	$(VENV_PIP) install -e ".[dev]"
 
 install-all: ## Install package with all dependencies
-	$(PIP) install -e ".[all]" --break-system-packages
+	$(VENV_PIP) install -e ".[all]"
 
 install-ci: ## Install for CI (no editable)
-	$(PIP) install ".[dev]" --break-system-packages
+	$(VENV_PIP) install ".[dev]"
 
 setup-dev: ## Complete development setup
 	@echo "$(BLUE)Setting up development environment...$(NC)"
