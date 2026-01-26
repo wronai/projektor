@@ -367,10 +367,10 @@ Skup się na:
 
             return response.choices[0].message.content
 
-        except ImportError:
-            # Fallback without LLM - return simple plan
-            logger.warning("litellm not available, using fallback planning")
-            return self._fallback_plan()
+        except ImportError as e:
+            raise RuntimeError(
+                "LLM planning requires optional dependency 'litellm'. Install projektor with the 'llm' extra."
+            ) from e
 
     def _fallback_plan(self) -> str:
         """Fallback plan when LLM is not available."""

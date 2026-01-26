@@ -281,6 +281,42 @@ class Orchestrator:
                     json.dumps(exec_result.to_dict(), indent=2)
                 )
 
+                try:
+                    from projektor.orchestration.planner import StepType
+
+                    step_by_number = {s.step_number: s for s in plan.steps}
+                    stdout_parts: list[str] = []
+                    stderr_parts: list[str] = []
+                    test_steps: list[dict[str, Any]] = []
+
+                    for sr in exec_result.step_results:
+                        step = step_by_number.get(sr.step_number)
+                        if not step or step.step_type != StepType.RUN_TESTS:
+                            continue
+
+                        test_steps.append(
+                            {
+                                "step_number": sr.step_number,
+                                "target_file": step.target_file,
+                                "success": sr.success,
+                            }
+                        )
+
+                        header = f"\n===== plan run_tests step {sr.step_number} ({step.target_file or 'all'}) =====\n"
+                        if sr.output:
+                            stdout_parts.append(header + sr.output)
+                        if sr.error:
+                            stderr_parts.append(header + sr.error)
+
+                    if test_steps:
+                        (run_dir / "plan_tests.json").write_text(
+                            json.dumps({"steps": test_steps}, indent=2)
+                        )
+                        (run_dir / "plan_tests_stdout.txt").write_text("".join(stdout_parts))
+                        (run_dir / "plan_tests_stderr.txt").write_text("".join(stderr_parts))
+                except Exception:
+                    pass
+
             result.steps_completed = exec_result.steps_completed
             result.steps_failed = exec_result.steps_failed
             result.files_modified = exec_result.files_modified
@@ -295,7 +331,15 @@ class Orchestrator:
             logger.info(f"[{ticket_id}] Executed {result.steps_completed} steps")
 
             # 3. Testing
-            if self.run_tests and result.files_modified:
+            from projektor.orchestration.planner import StepType
+
+            plan_has_run_tests = any(s.step_type == StepType.RUN_TESTS for s in plan.steps)
+
+            if plan_has_run_tests:
+                logger.info(
+                    f"[{ticket_id}] Plan contains run_tests step; skipping orchestrator test run"
+                )
+            elif self.run_tests and result.files_modified:
                 logger.info(f"[{ticket_id}] Running tests...")
                 self.status = OrchestrationStatus.TESTING
 
