@@ -333,22 +333,39 @@ class PlanExecutor:
         result: ExecutionResult,
     ) -> None:
         """Run a command (limited commands only)."""
-        if not step.command:
+        cmd = step.command or step.changes
+        if not cmd:
             step_result.error = "No command specified"
             return
 
         # Security: Only allow safe commands
-        safe_prefixes = ["python", "pip", "pytest", "black", "ruff", "mypy"]
+        safe_prefixes = [
+            "python",
+            "python3",
+            "pip",
+            "pip3",
+            "pytest",
+            "black",
+            "ruff",
+            "mypy",
+            "rg",
+            "grep",
+            "find",
+            "ls",
+            "cat",
+            "head",
+            "tail",
+        ]
 
-        cmd_lower = step.command.lower().strip()
+        cmd_lower = str(cmd).lower().strip()
         if not any(cmd_lower.startswith(prefix) for prefix in safe_prefixes):
-            step_result.error = f"Command not allowed: {step.command}"
+            step_result.error = f"Command not allowed: {cmd}"
             return
 
         import asyncio
 
         proc = await asyncio.create_subprocess_shell(
-            step.command,
+            str(cmd),
             cwd=str(self.project.root_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

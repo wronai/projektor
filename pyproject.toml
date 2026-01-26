@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "projektor"
-version = "0.1.12"
+version = "0.1.13"
 description = "LLM-orchestrated project management with DevOps automation for iterative development"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -91,7 +91,7 @@ select = ["E", "F", "W", "I", "UP", "B", "C4"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "0.1.12"
+python_version = "0.1.13"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
