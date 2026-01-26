@@ -160,6 +160,10 @@ Plan musi zawierać konkretne kroki do wykonania, każdy z:
 - Szczegółami zmian
 - Uzasadnieniem
 
+Ważne zasady:
+- `target_file` musi być realną ścieżką pliku w repozytorium (relative do root projektu)
+- Nigdy nie używaj pseudo-ścieżek typu `<string>`, `<stdin>`, `-` itp.
+
 Odpowiedz w formacie JSON:
 {
     "summary": "Krótkie podsumowanie planu",
@@ -301,6 +305,14 @@ Skup się na:
         try:
             import litellm
 
+            api_key: str | None = None
+            if isinstance(self.model, str) and self.model.startswith("openrouter/"):
+                api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
+            elif isinstance(self.model, str) and self.model.startswith("openai/"):
+                api_key = os.environ.get("OPENAI_API_KEY")
+            elif isinstance(self.model, str) and self.model.startswith("anthropic/"):
+                api_key = os.environ.get("ANTHROPIC_API_KEY")
+
             response = await litellm.acompletion(
                 model=self.model,
                 messages=[
@@ -309,6 +321,7 @@ Skup się na:
                 ],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                api_key=api_key,
             )
 
             return response.choices[0].message.content

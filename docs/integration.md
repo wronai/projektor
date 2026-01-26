@@ -245,6 +245,46 @@ projektor work on TICKET-1 --auto-fix
 projektor work on NLP2-2 --auto-fix
 ```
 
+## Troubleshooting
+
+### 401 Unauthorized (OpenRouter) / "No cookie auth credentials found"
+
+Ten błąd prawie zawsze oznacza, że **proces `projektor` nie widzi klucza API** albo używasz innej wersji `projektor` niż tej z repo.
+
+1. **Sprawdź co widzi projektor**:
+
+```bash
+projektor -p . doctor
+```
+
+2. **Upewnij się, że `.env` jest w katalogu projektu** (np. `nlp2cmd/.env`), a nie tylko w repo `projektor/`:
+
+```env
+OPENROUTER_API_KEY=sk-or-v1-...
+```
+
+3. **Upewnij się, że uruchamiasz poprawną wersję projektora**.
+
+Jeśli widzisz stacktrace typu:
+
+```
+.../venv/lib/.../site-packages/projektor/...
+```
+
+to uruchamiasz **zainstalowaną paczkę** z venv. Żeby używać wersji z repo (z najnowszymi poprawkami), zainstaluj ją w trybie editable w tym samym venv:
+
+```bash
+# uruchom w aktywnym venv projektu (np. nlp2cmd/venv)
+pip uninstall -y projektor
+pip install -e /home/tom/github/wronai/projektor[llm]
+```
+
+4. **Szybki test klucza**:
+
+```bash
+python -c "import os; print('OPENROUTER_API_KEY set:', bool(os.getenv('OPENROUTER_API_KEY')))"
+```
+
 ## Przykłady Integracji z Projektami
 
 ### nlp2cmd - Natural Language to Commands

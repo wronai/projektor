@@ -103,9 +103,18 @@ def doctor(ctx):
     project_path: Path = ctx.obj["project_path"]
     cfg = ctx.obj.get("config")
 
+    try:
+        import projektor as projektor_pkg
+        projektor_path = getattr(projektor_pkg, "__file__", None)
+    except Exception:
+        projektor_path = None
+
     model = getattr(getattr(cfg, "llm", None), "model", None)
     console.print("[bold]Projektor Doctor[/bold]\n")
     console.print(f"[bold]Project:[/bold] {project_path}")
+    console.print(f"[bold]Python:[/bold] {sys.executable}")
+    if projektor_path:
+        console.print(f"[bold]Projektor package:[/bold] {projektor_path}")
     console.print(f"[bold]Model:[/bold] {model or '[dim]unknown[/dim]'}")
 
     project_env = project_path / ".env"

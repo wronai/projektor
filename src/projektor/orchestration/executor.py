@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -267,6 +268,10 @@ class PlanExecutor:
             step_result.error = "No target file specified"
             return
 
+        if step.target_file.startswith("<") and step.target_file.endswith(">"):
+            step_result.error = f"Invalid target file: {step.target_file}"
+            return
+
         target = self.project.root_path / step.target_file
 
         if not target.exists():
@@ -297,6 +302,10 @@ class PlanExecutor:
         """Delete a file."""
         if not step.target_file:
             step_result.error = "No target file specified"
+            return
+
+        if step.target_file.startswith("<") and step.target_file.endswith(">"):
+            step_result.error = f"Invalid target file: {step.target_file}"
             return
 
         target = self.project.root_path / step.target_file
@@ -363,7 +372,7 @@ class PlanExecutor:
         """Run tests."""
         import asyncio
 
-        cmd = "python -m pytest -v --tb=short"
+        cmd = f"{sys.executable} -m pytest -v --tb=short"
         if step.target_file:
             cmd += f" {step.target_file}"
 

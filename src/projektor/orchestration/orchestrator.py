@@ -7,10 +7,13 @@ Koordynuje pracę między LLM, wykonawcami kodu i systemem DevOps.
 from __future__ import annotations
 
 import os
+import json
 import logging
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -197,6 +200,8 @@ class Orchestrator:
         result = WorkResult(ticket_id=ticket_id, status=OrchestrationStatus.PLANNING)
         self._current_result = result
 
+        run_dir: Path | None = None
+
         try:
             # Pobierz ticket
             ticket = self.project.get_ticket(ticket_id)
@@ -204,6 +209,24 @@ class Orchestrator:
                 result.errors.append(f"Ticket {ticket_id} not found")
                 result.status = OrchestrationStatus.FAILED
                 return result
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_dir = self.project.root_path / ".projektor" / "runs" / f"{ticket_id}_{ts}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "meta.json").write_text(
+                json.dumps(
+                    {
+                        "ticket_id": ticket_id,
+                        "started_at": result.started_at.isoformat(),
+                        "model": self.model,
+                        "dry_run": self.dry_run,
+                        "auto_commit": self.auto_commit,
+                        "run_tests": self.run_tests,
+                        "context": context or {},
+                    },
+                    indent=2,
+                )
+            )
 
             # 1. Planning
             logger.info(f"[{ticket_id}] Generating plan...")
@@ -215,9 +238,22 @@ class Orchestrator:
                 context=context,
             )
 
+            if run_dir is not None:
+                (run_dir / "plan.json").write_text(json.dumps(plan.to_dict(), indent=2))
+
             if not plan.success:
                 result.errors.append(f"Planning failed: {plan.error}")
                 result.status = OrchestrationStatus.FAILED
+                return result
+
+            validation_errors = self._validate_plan(plan)
+            if validation_errors:
+                result.errors.extend(validation_errors)
+                result.status = OrchestrationStatus.FAILED
+                if run_dir is not None:
+                    (run_dir / "validation_errors.json").write_text(
+                        json.dumps(validation_errors, indent=2)
+                    )
                 return result
 
             result.plan_generated = True
@@ -231,6 +267,11 @@ class Orchestrator:
             self.status = OrchestrationStatus.EXECUTING
 
             exec_result = await self.executor.execute(plan)
+
+            if run_dir is not None:
+                (run_dir / "execution.json").write_text(
+                    json.dumps(exec_result.to_dict(), indent=2)
+                )
 
             result.steps_completed = exec_result.steps_completed
             result.steps_failed = exec_result.steps_failed
@@ -301,6 +342,9 @@ class Orchestrator:
             result.errors.append(str(e))
             result.status = OrchestrationStatus.FAILED
 
+            if run_dir is not None:
+                (run_dir / "exception.txt").write_text(traceback.format_exc())
+
             # Attempt rollback
             try:
                 await self.executor.rollback()
@@ -311,7 +355,54 @@ class Orchestrator:
             self.status = OrchestrationStatus.IDLE
             self._current_result = None
 
+            if run_dir is not None:
+                try:
+                    (run_dir / "result.json").write_text(
+                        json.dumps(result.to_dict(), indent=2)
+                    )
+                except Exception:
+                    pass
+
         return result
+
+    def _validate_plan(self, plan) -> list[str]:
+        from projektor.orchestration.planner import StepType
+
+        errors: list[str] = []
+        created: set[str] = set()
+
+        for step in plan.steps:
+            if step.step_type == StepType.CREATE_FILE and step.target_file:
+                created.add(step.target_file)
+
+        for step in plan.steps:
+            if step.step_type not in (StepType.MODIFY_FILE, StepType.DELETE_FILE, StepType.RUN_TESTS):
+                continue
+
+            if not step.target_file:
+                errors.append(f"Invalid plan: step {step.step_number} missing target_file")
+                continue
+
+            if step.target_file.startswith("<") and step.target_file.endswith(">"):
+                errors.append(
+                    f"Invalid plan: step {step.step_number} has dynamic target_file={step.target_file}"
+                )
+                continue
+
+            p = Path(step.target_file)
+            if p.is_absolute() or ".." in p.parts:
+                errors.append(
+                    f"Invalid plan: step {step.step_number} has unsafe target_file={step.target_file}"
+                )
+                continue
+
+            if step.step_type in (StepType.MODIFY_FILE, StepType.DELETE_FILE):
+                if step.target_file not in created and not (self.project.root_path / step.target_file).exists():
+                    errors.append(
+                        f"Invalid plan: step {step.step_number} target_file not found: {step.target_file}"
+                    )
+
+        return errors
 
     async def plan_ticket(
         self,
