@@ -164,6 +164,9 @@ Ważne zasady:
 - `target_file` musi być realną ścieżką pliku w repozytorium (relative do root projektu)
 - Nigdy nie używaj pseudo-ścieżek typu `<string>`, `<stdin>`, `-` itp.
 - Preferuj modyfikowanie istniejących plików; jeśli plik nie istnieje, dodaj najpierw krok `create_file`.
+- Dla kroku `create_file` pole `changes` MUSI zawierać docelową treść pliku (kod), a nie opis/instrukcje.
+- Dla kroku `modify_file` pole `changes` MUSI być unified diff (patch) względem istniejącego pliku (preferowane), albo pełną docelową treścią pliku.
+  Jeśli modyfikujesz plik `.py` / `.pyi`, wynikowa treść musi być poprawnym Pythonem (musi się parsować).
 - Jeśli w projekcie istnieje katalog `src/`, preferuj ścieżki z prefiksem `src/` dla plików, które istnieją w tym projekcie (albo zostaną utworzone krokiem `create_file`).
 - Nie używaj ścieżek `src/projektor/...` jeśli taki plik nie jest częścią aktualnego repozytorium (musi istnieć w projekcie lub być na liście plików w prompt).
 

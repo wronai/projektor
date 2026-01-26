@@ -704,7 +704,23 @@ def work():
 
 @work.command("logs")
 @click.argument("ticket_id", required=False)
-@click.option("--show", type=click.Choice(["meta", "plan", "plan_repaired", "execution", "validation", "result", "exception"]))
+@click.option(
+    "--show",
+    type=click.Choice(
+        [
+            "meta",
+            "plan",
+            "plan_repaired",
+            "execution",
+            "validation",
+            "tests",
+            "tests_stdout",
+            "tests_stderr",
+            "result",
+            "exception",
+        ]
+    ),
+)
 @click.option("--tail", default=200, help="Tail N lines for text outputs")
 @click.pass_context
 def work_logs(ctx, ticket_id: str | None, show: str | None, tail: int):
@@ -734,6 +750,9 @@ def work_logs(ctx, ticket_id: str | None, show: str | None, tail: int):
         "plan_repaired": latest / "plan_repaired.json",
         "execution": latest / "execution.json",
         "validation": latest / "validation_errors.json",
+        "tests": latest / "tests.json",
+        "tests_stdout": latest / "tests_stdout.txt",
+        "tests_stderr": latest / "tests_stderr.txt",
         "result": latest / "result.json",
         "exception": latest / "exception.txt",
     }

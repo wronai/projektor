@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import json
 import logging
+import sys
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -298,7 +299,7 @@ class Orchestrator:
                 logger.info(f"[{ticket_id}] Running tests...")
                 self.status = OrchestrationStatus.TESTING
 
-                test_result = await self._run_tests()
+                test_result = await self._run_tests(run_dir=run_dir)
 
                 result.tests_run = True
                 result.tests_passed = test_result.get("passed", 0)
@@ -307,7 +308,8 @@ class Orchestrator:
 
                 if result.tests_failed > 0:
                     logger.warning(f"[{ticket_id}] Tests failed: {result.tests_failed}")
-                    result.errors.append(f"Tests failed: {result.tests_failed}")
+                    hint = f" (see {run_dir})" if run_dir is not None else ""
+                    result.errors.append(f"Tests failed: {result.tests_failed}{hint}")
 
                     # Rollback if tests fail
                     await self.executor.rollback()
@@ -583,18 +585,35 @@ class Orchestrator:
 
         return result
 
-    async def _run_tests(self) -> dict[str, Any]:
+    async def _run_tests(self, run_dir: Path | None = None) -> dict[str, Any]:
         """Uruchom testy projektu."""
         from projektor.devops.test_runner import TestRunner
 
-        runner = TestRunner(project_path=self.project.root_path)
+        runner = TestRunner(project_path=self.project.root_path, python_path=sys.executable)
         result = await runner.run()
+
+        if run_dir is not None:
+            try:
+                (run_dir / "tests.json").write_text(json.dumps(result.to_dict(), indent=2))
+            except Exception:
+                pass
+            try:
+                (run_dir / "tests_stdout.txt").write_text(result.stdout or "")
+            except Exception:
+                pass
+            try:
+                (run_dir / "tests_stderr.txt").write_text(result.stderr or "")
+            except Exception:
+                pass
 
         return {
             "passed": result.passed,
             "failed": result.failed,
             "skipped": result.skipped,
             "coverage": result.coverage,
+            "failed_tests": result.failed_tests,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
         }
 
     async def _commit_changes(

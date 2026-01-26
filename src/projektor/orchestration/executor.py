@@ -7,8 +7,10 @@ Bezpiecznie wykonuje kroki planu z możliwością rollback.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import sys
+import textwrap
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -133,6 +135,92 @@ class PlanExecutor:
         self._last_result: ExecutionResult | None = None
         self._backup_dir = self.project.root_path / self.BACKUP_DIR
 
+    def _strip_markdown_code_fences(self, content: str) -> str:
+        stripped = content.strip()
+        if stripped.startswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 2:
+                lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                return "\n".join(lines).strip() + "\n"
+        return content
+
+    def _python_syntax_error(self, filename: str, content: str) -> str | None:
+        try:
+            compile(content, filename, "exec")
+        except SyntaxError as e:
+            line = e.lineno or 0
+            col = e.offset or 0
+            msg = e.msg or "SyntaxError"
+            return f"{filename}:{line}:{col}: {msg}"
+        return None
+
+    def _looks_like_unified_diff(self, content: str) -> bool:
+        s = content.lstrip()
+        return s.startswith("diff --git") or s.startswith("--- ") or s.startswith("@@ ")
+
+    def _apply_unified_diff(self, original: str, diff: str, filename: str) -> str:
+        hunk_re = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+        orig_lines = original.splitlines(True)
+        diff_lines = diff.splitlines(True)
+
+        out: list[str] = []
+        i = 0
+        idx = 0
+
+        while idx < len(diff_lines):
+            line = diff_lines[idx]
+
+            if line.startswith(("diff --git", "index ", "--- ", "+++ ")):
+                idx += 1
+                continue
+
+            m = hunk_re.match(line)
+            if not m:
+                idx += 1
+                continue
+
+            start_old = int(m.group(1))
+
+            while i < start_old - 1 and i < len(orig_lines):
+                out.append(orig_lines[i])
+                i += 1
+
+            idx += 1
+            while idx < len(diff_lines):
+                dl = diff_lines[idx]
+                if dl.startswith("@@ "):
+                    break
+
+                if dl.startswith(" "):
+                    expected = dl[1:]
+                    if i >= len(orig_lines) or orig_lines[i] != expected:
+                        raise ValueError(f"Unified diff context mismatch in {filename}")
+                    out.append(orig_lines[i])
+                    i += 1
+
+                elif dl.startswith("-"):
+                    expected = dl[1:]
+                    if i >= len(orig_lines) or orig_lines[i] != expected:
+                        raise ValueError(f"Unified diff removal mismatch in {filename}")
+                    i += 1
+
+                elif dl.startswith("+"):
+                    out.append(dl[1:])
+
+                elif dl.startswith("\\"):
+                    pass
+
+                else:
+                    raise ValueError(f"Invalid unified diff line in {filename}: {dl!r}")
+
+                idx += 1
+
+        out.extend(orig_lines[i:])
+        return "".join(out)
+
     async def execute(self, plan: TaskPlan) -> ExecutionResult:
         """
         Wykonaj plan.
@@ -250,7 +338,13 @@ class PlanExecutor:
         target.parent.mkdir(parents=True, exist_ok=True)
 
         # Write content
-        content = step.changes or ""
+        content = self._strip_markdown_code_fences(step.changes or "")
+        if target.suffix in {".py", ".pyi"}:
+            err = self._python_syntax_error(step.target_file, content)
+            if err:
+                step_result.error = f"Invalid python syntax in create_file content: {err}"
+                return
+
         target.write_text(content)
 
         step_result.success = True
@@ -284,10 +378,40 @@ class PlanExecutor:
         result.backups[step.target_file] = str(backup_path)
 
         # Apply changes
-        if step.changes:
-            # For now, just replace content
-            # TODO: Implement smarter diff-based changes
-            target.write_text(step.changes)
+        if not step.changes:
+            step_result.error = "No changes specified"
+            return
+
+        raw_changes = self._strip_markdown_code_fences(step.changes)
+        current = target.read_text()
+
+        try:
+            if self._looks_like_unified_diff(raw_changes):
+                new_content = self._apply_unified_diff(current, raw_changes, step.target_file)
+            else:
+                new_content = raw_changes
+        except Exception as e:
+            try:
+                shutil.copy2(Path(backup_path), target)
+            except Exception:
+                pass
+            step_result.error = str(e)
+            return
+
+        if target.suffix in {".py", ".pyi"}:
+            err = self._python_syntax_error(step.target_file, new_content)
+            if err:
+                try:
+                    shutil.copy2(Path(backup_path), target)
+                except Exception:
+                    pass
+                step_result.error = (
+                    "Refusing to write invalid python to file. "
+                    f"{err}"
+                )
+                return
+
+        target.write_text(new_content)
 
         step_result.success = True
         step_result.file_modified = step.target_file
@@ -406,7 +530,14 @@ class PlanExecutor:
         step_result.success = proc.returncode == 0
 
         if not step_result.success:
-            step_result.error = stderr.decode() if stderr else "Tests failed"
+            if stderr:
+                step_result.error = stderr.decode()
+            elif stdout:
+                out = stdout.decode(errors="replace")
+                tail = "\n".join(out.splitlines()[-80:])
+                step_result.error = "Tests failed\n" + textwrap.dedent(tail)
+            else:
+                step_result.error = "Tests failed"
 
     async def _execute_analyze(
         self,
