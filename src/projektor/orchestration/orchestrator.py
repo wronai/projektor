@@ -411,15 +411,27 @@ class Orchestrator:
         if self._file_index is not None:
             return self._file_index
 
-        ignore_dirnames = {".git", ".venv", "venv", "__pycache__", ".projektor"}
+        ignore_dirnames = {
+            ".git",
+            ".venv",
+            "venv",
+            "__pycache__",
+            ".projektor",
+            ".tox",
+            "build",
+            "dist",
+            "node_modules",
+            "webops",
+        }
         index: dict[str, list[str]] = {}
         for p in self.project.root_path.rglob("*"):
             try:
                 if not p.is_file():
                     continue
-                if any(part in ignore_dirnames for part in p.parts):
-                    continue
                 rel = p.relative_to(self.project.root_path).as_posix()
+                rel_parts = Path(rel).parts
+                if any(part in ignore_dirnames for part in rel_parts):
+                    continue
                 index.setdefault(p.name, []).append(rel)
             except Exception:
                 continue
@@ -440,13 +452,35 @@ class Orchestrator:
         if len(candidates) == 1:
             return candidates[0]
 
-        dir_hint = Path(target_file).parent.as_posix()
-        if dir_hint and dir_hint not in (".", "/"):
-            filtered = [c for c in candidates if dir_hint in c]
-            if len(filtered) == 1:
-                return filtered[0]
+        # Prefer src/ paths
+        src_candidates = [c for c in candidates if c.startswith("src/")]
+        if src_candidates:
+            candidates = src_candidates
 
-        return None
+        # Score candidates by matching directory suffix with requested path
+        req_dirs = list(Path(target_file).parent.parts)
+
+        def _suffix_match_score(candidate: str) -> int:
+            cand_dirs = list(Path(candidate).parent.parts)
+            score = 0
+            i = len(req_dirs) - 1
+            j = len(cand_dirs) - 1
+            while i >= 0 and j >= 0:
+                if req_dirs[i] == cand_dirs[j]:
+                    score += 1
+                    i -= 1
+                    j -= 1
+                else:
+                    break
+            return score
+
+        scored = [(c, _suffix_match_score(c)) for c in candidates]
+        best_score = max(s for _, s in scored)
+        best = [c for c, s in scored if s == best_score]
+
+        # If still ambiguous, pick the shortest relative path (most likely real source)
+        best.sort(key=lambda x: (len(Path(x).parts), x))
+        return best[0] if best else None
 
     def _repair_plan_target_files(self, plan) -> None:
         from projektor.orchestration.planner import StepType
