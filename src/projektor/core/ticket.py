@@ -9,11 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class TicketType(Enum):
     """Typ ticketu."""
+
     TASK = "task"
     BUG = "bug"
     FEATURE = "feature"
@@ -26,6 +27,7 @@ class TicketType(Enum):
 
 class TicketStatus(Enum):
     """Status ticketu."""
+
     BACKLOG = "backlog"
     TODO = "todo"
     IN_PROGRESS = "in_progress"
@@ -38,6 +40,7 @@ class TicketStatus(Enum):
 
 class Priority(Enum):
     """Priorytet ticketu."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -47,20 +50,20 @@ class Priority(Enum):
 @dataclass
 class Comment:
     """Komentarz do ticketu."""
-    
+
     author: str
     content: str
     created_at: datetime = field(default_factory=datetime.now)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "author": self.author,
             "content": self.content,
             "created_at": self.created_at.isoformat(),
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Comment":
+    def from_dict(cls, data: dict[str, Any]) -> Comment:
         return cls(
             author=data["author"],
             content=data["content"],
@@ -71,22 +74,22 @@ class Comment:
 @dataclass
 class Attachment:
     """Załącznik do ticketu."""
-    
+
     name: str
     path: str
     mime_type: str = "application/octet-stream"
     size: int = 0
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "path": self.path,
             "mime_type": self.mime_type,
             "size": self.size,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Attachment":
+    def from_dict(cls, data: dict[str, Any]) -> Attachment:
         return cls(
             name=data["name"],
             path=data["path"],
@@ -98,15 +101,15 @@ class Attachment:
 @dataclass
 class WorkLog:
     """Log pracy nad ticketem."""
-    
+
     action: str
     description: str
     author: str = "projektor"
     timestamp: datetime = field(default_factory=datetime.now)
     duration_minutes: int = 0
-    commit_hash: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    commit_hash: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "action": self.action,
             "description": self.description,
@@ -115,9 +118,9 @@ class WorkLog:
             "duration_minutes": self.duration_minutes,
             "commit_hash": self.commit_hash,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WorkLog":
+    def from_dict(cls, data: dict[str, Any]) -> WorkLog:
         return cls(
             action=data["action"],
             description=data["description"],
@@ -131,27 +134,28 @@ class WorkLog:
 @dataclass
 class AcceptanceCriteria:
     """Kryterium akceptacji."""
-    
+
     description: str
     completed: bool = False
-    completed_at: Optional[datetime] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    completed_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "description": self.description,
             "completed": self.completed,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AcceptanceCriteria":
+    def from_dict(cls, data: dict[str, Any]) -> AcceptanceCriteria:
         return cls(
             description=data["description"],
             completed=data.get("completed", False),
-            completed_at=datetime.fromisoformat(data["completed_at"]) 
-                if data.get("completed_at") else None,
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
+            ),
         )
-    
+
     def mark_complete(self) -> None:
         """Oznacz jako ukończone."""
         self.completed = True
@@ -162,10 +166,10 @@ class AcceptanceCriteria:
 class Ticket:
     """
     Reprezentacja ticketu/zadania.
-    
+
     Główna jednostka pracy w projekcie. Może reprezentować task, bug,
     feature, epic lub story.
-    
+
     Example:
         >>> ticket = Ticket(
         ...     id="PROJ-42",
@@ -177,50 +181,50 @@ class Ticket:
         >>> ticket.add_acceptance_criteria("CC < 15")
         >>> ticket.transition_to(TicketStatus.IN_PROGRESS)
     """
-    
+
     id: str
     title: str
     type: TicketType = TicketType.TASK
     status: TicketStatus = TicketStatus.BACKLOG
     priority: Priority = Priority.MEDIUM
-    
+
     # Content
     description: str = ""
-    acceptance_criteria: List[AcceptanceCriteria] = field(default_factory=list)
-    
+    acceptance_criteria: list[AcceptanceCriteria] = field(default_factory=list)
+
     # Metadata
-    labels: List[str] = field(default_factory=list)
-    story_points: Optional[int] = None
-    sprint_id: Optional[str] = None
-    milestone_id: Optional[str] = None
-    parent_id: Optional[str] = None  # For subtasks
-    
+    labels: list[str] = field(default_factory=list)
+    story_points: int | None = None
+    sprint_id: str | None = None
+    milestone_id: str | None = None
+    parent_id: str | None = None  # For subtasks
+
     # Assignment
-    assignee: Optional[str] = None
+    assignee: str | None = None
     reporter: str = "projektor"
-    
+
     # Relations
-    blocks: List[str] = field(default_factory=list)
-    blocked_by: List[str] = field(default_factory=list)
-    related_to: List[str] = field(default_factory=list)
-    
+    blocks: list[str] = field(default_factory=list)
+    blocked_by: list[str] = field(default_factory=list)
+    related_to: list[str] = field(default_factory=list)
+
     # History
-    comments: List[Comment] = field(default_factory=list)
-    work_logs: List[WorkLog] = field(default_factory=list)
-    attachments: List[Attachment] = field(default_factory=list)
-    
+    comments: list[Comment] = field(default_factory=list)
+    work_logs: list[WorkLog] = field(default_factory=list)
+    attachments: list[Attachment] = field(default_factory=list)
+
     # Files affected
-    affected_files: List[str] = field(default_factory=list)
-    
+    affected_files: list[str] = field(default_factory=list)
+
     # Timestamps
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
     # LLM context
-    llm_context: Dict[str, Any] = field(default_factory=dict)
-    
+    llm_context: dict[str, Any] = field(default_factory=dict)
+
     def __post_init__(self):
         """Walidacja po inicjalizacji."""
         if isinstance(self.type, str):
@@ -229,78 +233,86 @@ class Ticket:
             self.status = TicketStatus(self.status)
         if isinstance(self.priority, str):
             self.priority = Priority(self.priority)
-    
+
     # ==================== Status Management ====================
-    
+
     def transition_to(self, new_status: TicketStatus) -> bool:
         """
         Zmień status ticketu.
-        
+
         Args:
             new_status: Nowy status
-            
+
         Returns:
             True jeśli zmiana się powiodła
         """
         # Walidacja przejść statusu
         valid_transitions = {
             TicketStatus.BACKLOG: [TicketStatus.TODO, TicketStatus.CANCELLED],
-            TicketStatus.TODO: [TicketStatus.IN_PROGRESS, TicketStatus.BLOCKED, TicketStatus.CANCELLED],
-            TicketStatus.IN_PROGRESS: [TicketStatus.IN_REVIEW, TicketStatus.BLOCKED, TicketStatus.TODO],
+            TicketStatus.TODO: [
+                TicketStatus.IN_PROGRESS,
+                TicketStatus.BLOCKED,
+                TicketStatus.CANCELLED,
+            ],
+            TicketStatus.IN_PROGRESS: [
+                TicketStatus.IN_REVIEW,
+                TicketStatus.BLOCKED,
+                TicketStatus.TODO,
+            ],
             TicketStatus.IN_REVIEW: [TicketStatus.TESTING, TicketStatus.IN_PROGRESS],
             TicketStatus.TESTING: [TicketStatus.DONE, TicketStatus.IN_PROGRESS],
             TicketStatus.BLOCKED: [TicketStatus.TODO, TicketStatus.IN_PROGRESS],
             TicketStatus.DONE: [],  # Terminal state
             TicketStatus.CANCELLED: [],  # Terminal state
         }
-        
+
         if new_status not in valid_transitions.get(self.status, []):
             return False
-        
+
         old_status = self.status
         self.status = new_status
         self.updated_at = datetime.now()
-        
+
         # Update timestamps
         if new_status == TicketStatus.IN_PROGRESS and self.started_at is None:
             self.started_at = datetime.now()
         elif new_status == TicketStatus.DONE:
             self.completed_at = datetime.now()
-        
+
         # Log transition
         self.add_work_log(
             action="status_change",
-            description=f"Status changed from {old_status.value} to {new_status.value}"
+            description=f"Status changed from {old_status.value} to {new_status.value}",
         )
-        
+
         return True
-    
+
     def start(self) -> bool:
         """Rozpocznij pracę nad ticketem."""
         return self.transition_to(TicketStatus.IN_PROGRESS)
-    
+
     def complete(self) -> bool:
         """Oznacz ticket jako ukończony."""
         # Sprawdź czy wszystkie kryteria są spełnione
         if not self.all_criteria_met:
             return False
         return self.transition_to(TicketStatus.DONE)
-    
-    def block(self, blocked_by: Optional[str] = None) -> bool:
+
+    def block(self, blocked_by: str | None = None) -> bool:
         """Zablokuj ticket."""
         if blocked_by and blocked_by not in self.blocked_by:
             self.blocked_by.append(blocked_by)
         return self.transition_to(TicketStatus.BLOCKED)
-    
+
     # ==================== Acceptance Criteria ====================
-    
+
     def add_acceptance_criteria(self, description: str) -> AcceptanceCriteria:
         """Dodaj kryterium akceptacji."""
         criteria = AcceptanceCriteria(description=description)
         self.acceptance_criteria.append(criteria)
         self.updated_at = datetime.now()
         return criteria
-    
+
     def complete_criteria(self, index: int) -> bool:
         """Oznacz kryterium jako ukończone."""
         if 0 <= index < len(self.acceptance_criteria):
@@ -308,36 +320,36 @@ class Ticket:
             self.updated_at = datetime.now()
             return True
         return False
-    
+
     @property
     def all_criteria_met(self) -> bool:
         """Czy wszystkie kryteria są spełnione."""
         if not self.acceptance_criteria:
             return True
         return all(c.completed for c in self.acceptance_criteria)
-    
+
     @property
     def criteria_progress(self) -> tuple[int, int]:
         """Postęp kryteriów (completed, total)."""
         total = len(self.acceptance_criteria)
         completed = sum(1 for c in self.acceptance_criteria if c.completed)
         return completed, total
-    
+
     # ==================== Comments & Logs ====================
-    
+
     def add_comment(self, content: str, author: str = "projektor") -> Comment:
         """Dodaj komentarz."""
         comment = Comment(author=author, content=content)
         self.comments.append(comment)
         self.updated_at = datetime.now()
         return comment
-    
+
     def add_work_log(
         self,
         action: str,
         description: str,
         duration_minutes: int = 0,
-        commit_hash: Optional[str] = None,
+        commit_hash: str | None = None,
     ) -> WorkLog:
         """Dodaj log pracy."""
         log = WorkLog(
@@ -349,10 +361,10 @@ class Ticket:
         self.work_logs.append(log)
         self.updated_at = datetime.now()
         return log
-    
+
     # ==================== Serialization ====================
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Konwersja do słownika."""
         return {
             "id": self.id,
@@ -382,9 +394,9 @@ class Ticket:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "llm_context": self.llm_context,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Ticket":
+    def from_dict(cls, data: dict[str, Any]) -> Ticket:
         """Tworzenie z słownika."""
         return cls(
             id=data["id"],
@@ -394,8 +406,7 @@ class Ticket:
             priority=Priority(data.get("priority", "medium")),
             description=data.get("description", ""),
             acceptance_criteria=[
-                AcceptanceCriteria.from_dict(c) 
-                for c in data.get("acceptance_criteria", [])
+                AcceptanceCriteria.from_dict(c) for c in data.get("acceptance_criteria", [])
             ],
             labels=data.get("labels", []),
             story_points=data.get("story_points"),
@@ -411,17 +422,25 @@ class Ticket:
             work_logs=[WorkLog.from_dict(w) for w in data.get("work_logs", [])],
             attachments=[Attachment.from_dict(a) for a in data.get("attachments", [])],
             affected_files=data.get("affected_files", []),
-            created_at=datetime.fromisoformat(data["created_at"]) 
-                if "created_at" in data else datetime.now(),
-            updated_at=datetime.fromisoformat(data["updated_at"])
-                if "updated_at" in data else datetime.now(),
-            started_at=datetime.fromisoformat(data["started_at"]) 
-                if data.get("started_at") else None,
-            completed_at=datetime.fromisoformat(data["completed_at"]) 
-                if data.get("completed_at") else None,
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if "created_at" in data
+                else datetime.now()
+            ),
+            updated_at=(
+                datetime.fromisoformat(data["updated_at"])
+                if "updated_at" in data
+                else datetime.now()
+            ),
+            started_at=(
+                datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None
+            ),
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
+            ),
             llm_context=data.get("llm_context", {}),
         )
-    
+
     def to_llm_prompt(self) -> str:
         """Generuj prompt dla LLM opisujący ticket."""
         lines = [
@@ -434,35 +453,36 @@ class Ticket:
             self.description,
             "",
         ]
-        
+
         if self.acceptance_criteria:
             lines.append("## Acceptance Criteria")
             for i, c in enumerate(self.acceptance_criteria, 1):
                 status = "✅" if c.completed else "⬜"
                 lines.append(f"{status} {i}. {c.description}")
             lines.append("")
-        
+
         if self.affected_files:
             lines.append("## Affected Files")
             for f in self.affected_files:
                 lines.append(f"- {f}")
             lines.append("")
-        
+
         if self.labels:
             lines.append(f"**Labels:** {', '.join(self.labels)}")
-        
+
         return "\n".join(lines)
-    
+
     # ==================== Representation ====================
-    
+
     def __repr__(self) -> str:
         return f"Ticket({self.id!r}, {self.title!r}, status={self.status.value})"
-    
+
     def __str__(self) -> str:
         return f"[{self.id}] {self.title}"
 
 
 # ==================== Factory Functions ====================
+
 
 def create_bug(
     id: str,

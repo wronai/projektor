@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from projektor.core.project import Project
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class StepType(Enum):
     """Typ kroku w planie."""
+
     CREATE_FILE = "create_file"
     MODIFY_FILE = "modify_file"
     DELETE_FILE = "delete_file"
@@ -34,26 +35,26 @@ class StepType(Enum):
 @dataclass
 class PlanStep:
     """Krok planu implementacji."""
-    
+
     step_number: int
     step_type: StepType
     description: str
-    
+
     # Target
-    target_file: Optional[str] = None
-    
+    target_file: str | None = None
+
     # Details
-    changes: Optional[str] = None  # Opis zmian lub nowa zawartość
-    command: Optional[str] = None  # Komenda do wykonania
-    
+    changes: str | None = None  # Opis zmian lub nowa zawartość
+    command: str | None = None  # Komenda do wykonania
+
     # Dependencies
-    depends_on: List[int] = field(default_factory=list)
-    
+    depends_on: list[int] = field(default_factory=list)
+
     # Metadata
     rationale: str = ""  # Uzasadnienie kroku
     estimated_complexity: str = "low"  # low, medium, high
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "step_number": self.step_number,
             "step_type": self.step_type.value,
@@ -65,9 +66,9 @@ class PlanStep:
             "rationale": self.rationale,
             "estimated_complexity": self.estimated_complexity,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PlanStep":
+    def from_dict(cls, data: dict[str, Any]) -> PlanStep:
         return cls(
             step_number=data["step_number"],
             step_type=StepType(data["step_type"]),
@@ -84,25 +85,25 @@ class PlanStep:
 @dataclass
 class TaskPlan:
     """Plan realizacji zadania."""
-    
+
     success: bool
-    steps: List[PlanStep] = field(default_factory=list)
-    
+    steps: list[PlanStep] = field(default_factory=list)
+
     # Summary
     summary: str = ""
     estimated_time_minutes: int = 0
-    
+
     # Error (if failed)
-    error: Optional[str] = None
-    
+    error: str | None = None
+
     # LLM usage
     tokens_used: int = 0
     model_used: str = ""
-    
+
     # Metadata
     generated_at: datetime = field(default_factory=datetime.now)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "steps": [s.to_dict() for s in self.steps],
@@ -113,9 +114,9 @@ class TaskPlan:
             "model_used": self.model_used,
             "generated_at": self.generated_at.isoformat(),
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TaskPlan":
+    def from_dict(cls, data: dict[str, Any]) -> TaskPlan:
         return cls(
             success=data["success"],
             steps=[PlanStep.from_dict(s) for s in data.get("steps", [])],
@@ -124,25 +125,28 @@ class TaskPlan:
             error=data.get("error"),
             tokens_used=data.get("tokens_used", 0),
             model_used=data.get("model_used", ""),
-            generated_at=datetime.fromisoformat(data["generated_at"])
-                if "generated_at" in data else datetime.now(),
+            generated_at=(
+                datetime.fromisoformat(data["generated_at"])
+                if "generated_at" in data
+                else datetime.now()
+            ),
         )
 
 
 class TaskPlanner:
     """
     Planner zadań wykorzystujący LLM.
-    
+
     Analizuje ticket i kontekst projektu, generując szczegółowy
     plan implementacji z krokami do wykonania.
-    
+
     Example:
         >>> planner = TaskPlanner(model="openrouter/x-ai/grok-3-fast")
         >>> plan = await planner.plan(ticket, project)
         >>> for step in plan.steps:
         ...     print(f"{step.step_number}. {step.description}")
     """
-    
+
     SYSTEM_PROMPT = """Jesteś ekspertem programistą pomagającym w planowaniu implementacji.
 
 Twoim zadaniem jest analiza ticketu i wygenerowanie szczegółowego planu implementacji.
@@ -179,7 +183,7 @@ Skup się na:
 3. Dodaniu testów dla nowych funkcji
 4. Używaniu istniejących wzorców z projektu
 """
-    
+
     def __init__(
         self,
         model: str = "openrouter/x-ai/grok-3-fast",
@@ -190,37 +194,37 @@ Skup się na:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self._client = None
-    
+
     async def plan(
         self,
-        ticket: "Ticket",
-        project: "Project",
-        context: Optional[Dict[str, Any]] = None,
+        ticket: Ticket,
+        project: Project,
+        context: dict[str, Any] | None = None,
     ) -> TaskPlan:
         """
         Wygeneruj plan dla ticketu.
-        
+
         Args:
             ticket: Ticket do realizacji
             project: Projekt
             context: Dodatkowy kontekst
-            
+
         Returns:
             Plan implementacji
         """
         try:
             # Build prompt
             prompt = self._build_prompt(ticket, project, context)
-            
+
             # Call LLM
             response = await self._call_llm(prompt)
-            
+
             # Parse response
             plan = self._parse_response(response)
             plan.model_used = self.model
-            
+
             return plan
-            
+
         except Exception as e:
             logger.exception("Planning failed")
             return TaskPlan(
@@ -228,12 +232,12 @@ Skup się na:
                 error=str(e),
                 model_used=self.model,
             )
-    
+
     def _build_prompt(
         self,
-        ticket: "Ticket",
-        project: "Project",
-        context: Optional[Dict[str, Any]] = None,
+        ticket: Ticket,
+        project: Project,
+        context: dict[str, Any] | None = None,
     ) -> str:
         """Build prompt for LLM."""
         parts = [
@@ -244,7 +248,7 @@ Skup się na:
             ticket.to_llm_prompt(),
             "",
         ]
-        
+
         # Add project structure if available
         if project.toon_file and project.toon_file.exists():
             parts.append("# Struktura projektu (TOON)")
@@ -255,24 +259,24 @@ Skup się na:
                 parts.append(content)
             parts.append("```")
             parts.append("")
-        
+
         # Add context
         if context:
             parts.append("# Dodatkowy kontekst")
             for key, value in context.items():
                 parts.append(f"- {key}: {value}")
             parts.append("")
-        
+
         parts.append("# Zadanie")
         parts.append("Wygeneruj plan implementacji w formacie JSON.")
-        
+
         return "\n".join(parts)
-    
+
     async def _call_llm(self, prompt: str) -> str:
         """Call LLM API."""
         try:
             import litellm
-            
+
             response = await litellm.acompletion(
                 model=self.model,
                 messages=[
@@ -282,55 +286,57 @@ Skup się na:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
-            
+
             return response.choices[0].message.content
-            
+
         except ImportError:
             # Fallback without LLM - return simple plan
             logger.warning("litellm not available, using fallback planning")
             return self._fallback_plan()
-    
+
     def _fallback_plan(self) -> str:
         """Fallback plan when LLM is not available."""
-        return json.dumps({
-            "summary": "Fallback plan - LLM not available",
-            "estimated_time_minutes": 30,
-            "steps": [
-                {
-                    "step_number": 1,
-                    "step_type": "analyze",
-                    "description": "Analyze existing code structure",
-                    "target_file": None,
-                    "changes": None,
-                    "rationale": "Understand current implementation",
-                    "estimated_complexity": "low",
-                },
-                {
-                    "step_number": 2,
-                    "step_type": "modify_file",
-                    "description": "Implement changes based on ticket requirements",
-                    "target_file": "src/main.py",
-                    "changes": "TODO: Implement changes",
-                    "rationale": "Ticket requirements",
-                    "estimated_complexity": "medium",
-                },
-                {
-                    "step_number": 3,
-                    "step_type": "run_tests",
-                    "description": "Run tests to verify changes",
-                    "target_file": None,
-                    "changes": None,
-                    "rationale": "Ensure no regressions",
-                    "estimated_complexity": "low",
-                },
-            ],
-        })
-    
+        return json.dumps(
+            {
+                "summary": "Fallback plan - LLM not available",
+                "estimated_time_minutes": 30,
+                "steps": [
+                    {
+                        "step_number": 1,
+                        "step_type": "analyze",
+                        "description": "Analyze existing code structure",
+                        "target_file": None,
+                        "changes": None,
+                        "rationale": "Understand current implementation",
+                        "estimated_complexity": "low",
+                    },
+                    {
+                        "step_number": 2,
+                        "step_type": "modify_file",
+                        "description": "Implement changes based on ticket requirements",
+                        "target_file": "src/main.py",
+                        "changes": "TODO: Implement changes",
+                        "rationale": "Ticket requirements",
+                        "estimated_complexity": "medium",
+                    },
+                    {
+                        "step_number": 3,
+                        "step_type": "run_tests",
+                        "description": "Run tests to verify changes",
+                        "target_file": None,
+                        "changes": None,
+                        "rationale": "Ensure no regressions",
+                        "estimated_complexity": "low",
+                    },
+                ],
+            }
+        )
+
     def _parse_response(self, response: str) -> TaskPlan:
         """Parse LLM response into TaskPlan."""
         # Extract JSON from response
         json_str = response
-        
+
         # Handle markdown code blocks
         if "```json" in response:
             start = response.find("```json") + 7
@@ -340,7 +346,7 @@ Skup się na:
             start = response.find("```") + 3
             end = response.find("```", start)
             json_str = response[start:end].strip()
-        
+
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError as e:
@@ -348,7 +354,7 @@ Skup się na:
                 success=False,
                 error=f"Failed to parse LLM response: {e}",
             )
-        
+
         # Parse steps
         steps = []
         for step_data in data.get("steps", []):
@@ -357,14 +363,14 @@ Skup się na:
                 steps.append(step)
             except Exception as e:
                 logger.warning(f"Failed to parse step: {e}")
-        
+
         return TaskPlan(
             success=True,
             steps=steps,
             summary=data.get("summary", ""),
             estimated_time_minutes=data.get("estimated_time_minutes", 0),
         )
-    
+
     async def refine_plan(
         self,
         plan: TaskPlan,
@@ -372,11 +378,11 @@ Skup się na:
     ) -> TaskPlan:
         """
         Udoskonal plan na podstawie feedbacku.
-        
+
         Args:
             plan: Obecny plan
             feedback: Feedback do uwzględnienia
-            
+
         Returns:
             Ulepszony plan
         """
@@ -388,6 +394,6 @@ Feedback:
 
 Wygeneruj poprawiony plan uwzględniający feedback.
 """
-        
+
         response = await self._call_llm(prompt)
         return self._parse_response(response)

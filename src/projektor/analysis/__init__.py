@@ -2,21 +2,21 @@
 Analysis module - analiza kodu i metryki projektu.
 """
 
-from projektor.analysis.toon_parser import (
-    ToonParser,
-    ProjectStructure,
-    ModuleInfo,
-    FunctionInfo,
-)
 from projektor.analysis.metrics import (
-    MetricsCollector,
-    ProjectMetrics,
     CodeMetrics,
     ComplexityMetrics,
-    TestMetrics,
     GitMetrics,
+    MetricsCollector,
+    ProjectMetrics,
+    TestMetrics,
 )
 from projektor.analysis.reports import ReportGenerator
+from projektor.analysis.toon_parser import (
+    FunctionInfo,
+    ModuleInfo,
+    ProjectStructure,
+    ToonParser,
+)
 
 __all__ = [
     # TOON Parser
@@ -24,7 +24,6 @@ __all__ = [
     "ProjectStructure",
     "ModuleInfo",
     "FunctionInfo",
-    
     # Metrics
     "MetricsCollector",
     "ProjectMetrics",
@@ -32,7 +31,6 @@ __all__ = [
     "ComplexityMetrics",
     "TestMetrics",
     "GitMetrics",
-    
     # Reports
     "ReportGenerator",
 ]

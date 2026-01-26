@@ -15,31 +15,31 @@ __version__ = "0.1.0"
 __author__ = "Softreck"
 
 # Core
-from projektor.core.project import Project
-from projektor.core.ticket import Ticket, TicketType, TicketStatus, Priority
-from projektor.core.config import Config, ProjectConfig
-from projektor.core.events import Event, EventBus
-
-# Planning
-from projektor.planning.roadmap import Roadmap
-from projektor.planning.milestone import Milestone
-from projektor.planning.sprint import Sprint
-from projektor.planning.backlog import Backlog
-
-# Orchestration
-from projektor.orchestration.orchestrator import Orchestrator
-from projektor.orchestration.planner import TaskPlanner, TaskPlan
-from projektor.orchestration.executor import PlanExecutor, ExecutionResult
-
-# DevOps
-from projektor.devops.git_ops import GitOps
-from projektor.devops.test_runner import TestRunner, TestResult
-from projektor.devops.code_executor import CodeExecutor, CodeChange
+from projektor.analysis.metrics import MetricsCollector, ProjectMetrics
+from projektor.analysis.reports import ReportGenerator
 
 # Analysis
 from projektor.analysis.toon_parser import ToonParser
-from projektor.analysis.metrics import MetricsCollector, ProjectMetrics
-from projektor.analysis.reports import ReportGenerator
+from projektor.core.config import Config, ProjectConfig
+from projektor.core.events import Event, EventBus
+from projektor.core.project import Project
+from projektor.core.ticket import Priority, Ticket, TicketStatus, TicketType
+from projektor.devops.code_executor import CodeChange, CodeExecutor
+
+# DevOps
+from projektor.devops.git_ops import GitOps
+from projektor.devops.test_runner import TestResult, TestRunner
+from projektor.orchestration.executor import ExecutionResult, PlanExecutor
+
+# Orchestration
+from projektor.orchestration.orchestrator import Orchestrator
+from projektor.orchestration.planner import TaskPlan, TaskPlanner
+from projektor.planning.backlog import Backlog
+from projektor.planning.milestone import Milestone
+
+# Planning
+from projektor.planning.roadmap import Roadmap
+from projektor.planning.sprint import Sprint
 
 __all__ = [
     # Version
@@ -48,7 +48,7 @@ __all__ = [
     "Project",
     "Ticket",
     "TicketType",
-    "TicketStatus", 
+    "TicketStatus",
     "Priority",
     "Config",
     "ProjectConfig",

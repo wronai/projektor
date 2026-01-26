@@ -2,42 +2,42 @@
 Core module - podstawowe modele i komponenty Projektora.
 """
 
-from projektor.core.project import Project, ProjectMetadata, ProjectState
-from projektor.core.ticket import (
-    Ticket,
-    TicketType,
-    TicketStatus,
-    Priority,
-    Comment,
-    WorkLog,
-    AcceptanceCriteria,
-    create_bug,
-    create_feature,
-    create_tech_debt,
-)
 from projektor.core.config import (
+    CIConfig,
     Config,
-    ProjectConfig,
-    LLMConfig,
-    OrchestrationConfig,
-    TargetsConfig,
     DevOpsConfig,
     GitConfig,
-    CIConfig,
+    LLMConfig,
     NotificationsConfig,
+    OrchestrationConfig,
+    ProjectConfig,
+    TargetsConfig,
     get_config,
-    set_config,
     load_config,
+    set_config,
 )
 from projektor.core.events import (
     Event,
-    EventType,
     EventBus,
-    get_event_bus,
+    EventType,
     emit,
     emit_async,
+    get_event_bus,
     on,
     on_async,
+)
+from projektor.core.project import Project, ProjectMetadata, ProjectState
+from projektor.core.ticket import (
+    AcceptanceCriteria,
+    Comment,
+    Priority,
+    Ticket,
+    TicketStatus,
+    TicketType,
+    WorkLog,
+    create_bug,
+    create_feature,
+    create_tech_debt,
 )
 
 __all__ = [
