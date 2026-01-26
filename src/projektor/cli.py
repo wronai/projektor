@@ -1230,6 +1230,95 @@ def show_errors(ctx, count: int, log_file: str | None):
         console.print(f"[red]✗[/red] Error reading log: {e}")
 
 
+@cli.command("live")
+@click.option("--refresh", "-r", default=2, help="Refresh interval in seconds")
+@click.pass_context
+def live_monitor(ctx, refresh: int):
+    """Live monitoring of projektor activity (interactive mode).
+
+    Run this in one terminal while working in another.
+    Shows real-time status of tickets, errors, and activity.
+    """
+    from projektor.integration.config_loader import load_integration_config
+
+    path = ctx.obj["project_path"]
+
+    console.print("[bold]🎬 Projektor Live Monitor[/bold]")
+    console.print(f"[dim]Project: {path}[/dim]")
+    console.print(f"[dim]Refresh: every {refresh}s | Press Ctrl+C to stop[/dim]\n")
+
+    try:
+        import time
+
+        while True:
+            # Clear screen (ANSI escape)
+            console.print("\033[2J\033[H", end="")
+
+            console.print("[bold]🎬 Projektor Live Monitor[/bold]")
+            console.print(f"[dim]{path.name} | {time.strftime('%H:%M:%S')}[/dim]\n")
+
+            # Load config
+            config = load_integration_config(path)
+
+            # Status
+            console.print("[bold]📊 Status[/bold]")
+            console.print(f"  Enabled: {'[green]●[/green]' if config.enabled else '[red]●[/red]'}")
+            console.print(f"  Global handler: {'[green]●[/green]' if config.global_handler else '[dim]○[/dim]'}")
+            console.print(f"  Auto-fix: {'[green]●[/green]' if config.auto_fix else '[dim]○[/dim]'}")
+
+            # Tickets
+            projektor_dir = path / ".projektor"
+            tickets_dir = projektor_dir / "tickets"
+
+            if tickets_dir.exists():
+                tickets = list(tickets_dir.glob("*.json"))
+                console.print(f"\n[bold]🎫 Tickets ({len(tickets)})[/bold]")
+
+                import json
+                for ticket_file in sorted(tickets)[-5:]:  # Last 5
+                    try:
+                        with open(ticket_file) as f:
+                            t = json.load(f)
+                        status_icon = {
+                            "backlog": "⬜",
+                            "todo": "📋",
+                            "in_progress": "🔄",
+                            "done": "✅",
+                        }.get(t.get("status", "backlog"), "⬜")
+                        console.print(f"  {status_icon} [{t.get('id', '?')}] {t.get('title', 'No title')[:50]}")
+                    except Exception:
+                        pass
+
+            # Recent errors
+            error_log = path / config.report_file
+            if error_log.exists():
+                try:
+                    content = error_log.read_text()
+                    error_count = content.count("ERROR CAPTURED")
+                    console.print(f"\n[bold]🔴 Errors: {error_count}[/bold]")
+
+                    # Last error
+                    if "ERROR CAPTURED" in content:
+                        last_error = content.split("ERROR CAPTURED")[-1].split("\n")[0]
+                        console.print(f"  Last: {last_error[:60]}...")
+                except Exception:
+                    pass
+
+            # Workflows
+            if config.workflows:
+                console.print(f"\n[bold]⚡ Workflows ({len(config.workflows)})[/bold]")
+                for wf in config.workflows[:3]:
+                    icon = "✓" if wf.enabled else "○"
+                    console.print(f"  [{icon}] {wf.name} → {wf.trigger}")
+
+            console.print(f"\n[dim]─── Watching {', '.join(config.watch_paths[:3])} ───[/dim]")
+
+            time.sleep(refresh)
+
+    except KeyboardInterrupt:
+        console.print("\n[dim]Monitor stopped[/dim]")
+
+
 @cli.command("status")
 @click.pass_context
 def show_status(ctx):

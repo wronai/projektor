@@ -245,54 +245,195 @@ projektor work on TICKET-1 --auto-fix
 projektor work on NLP2-2 --auto-fix
 ```
 
-## Integracja z nlp2cmd (przykład)
+## Przykłady Integracji z Projektami
 
-### 1. Konfiguracja
-
-W `nlp2cmd/projektor.yaml`:
+### nlp2cmd - Natural Language to Commands
 
 ```yaml
+# projektor.yaml
+project:
+  name: nlp2cmd
+  version: "1.0.40"
+  description: "Natural Language to Domain-Specific Commands"
+  language: python
+
 integration:
   enabled: true
   global_handler: true
   auto_fix: false
+  watch_paths:
+    - src/nlp2cmd
+    - tests
+  workflows:
+    error-reporter:
+      trigger: on_error
+      labels: [nlp2cmd, runtime-error]
+    test-failure-tracker:
+      trigger: on_test_fail
+      priority: critical
+```
+
+```python
+# src/nlp2cmd/__init__.py
+try:
+    from projektor import install
+    install()
+except ImportError:
+    pass
+```
+
+### devix - Automated Development System
+
+```yaml
+# projektor.yaml
+project:
+  name: devix
+  version: "2.1.8"
+  description: "Automated development and code repair system"
+  language: python
+
+integration:
+  enabled: true
+  global_handler: true
+  watch_paths:
+    - src/devix
+    - tests
+  workflows:
+    code-analysis-error:
+      trigger: on_error
+      labels: [devix, analysis-error]
+    supervisor-error:
+      trigger: on_error
+      labels: [supervisor, critical]
+      conditions:
+        file_pattern: "*/supervisor.py"
+```
+
+### curllm - Browser Automation with LLM
+
+```yaml
+# projektor.yaml
+project:
+  name: curllm
+  version: "1.0.40"
+  description: "Browser Automation with Local LLM"
+  language: python
+
+integration:
+  enabled: true
+  global_handler: true
+  watch_paths:
+    - curllm_core
+    - functions
+  workflows:
+    browser-error:
+      trigger: on_error
+      labels: [curllm, browser-automation]
+    llm-error:
+      trigger: on_error
+      labels: [llm, inference-error]
+      conditions:
+        file_pattern: "*/llm/*"
+```
+
+### text2dsl - Voice CLI Navigation
+
+```yaml
+# projektor.yaml
+project:
+  name: text2dsl
+  version: "0.2.1"
+  description: "Głosowa nawigacja CLI z kontekstowym wsparciem"
+  language: python
+
+integration:
+  enabled: true
+  global_handler: true
+  watch_paths:
+    - text2dsl
+    - tests
+  workflows:
+    voice-error:
+      trigger: on_error
+      labels: [text2dsl, voice-processing]
+    dsl-parsing-error:
+      trigger: on_error
+      labels: [dsl, parsing]
+```
+
+### Uniwersalny szablon dla dowolnego projektu
+
+```yaml
+# projektor.yaml - skopiuj i dostosuj
+project:
+  name: YOUR_PROJECT_NAME
+  version: "1.0.0"
+  language: python
+
+integration:
+  enabled: true
+  global_handler: true
+  auto_fix: false
+  priority: high
+  
+  watch_paths:
+    - src
+    - tests
+  
+  ignore_patterns:
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - ".venv"
+  
+  report_to_console: true
+  report_to_file: true
+  report_file: .projektor/errors.log
   
   workflows:
-    nlp-error-tracker:
+    error-reporter:
       trigger: on_error
+      enabled: true
       labels:
-        - nlp2cmd
-        - parsing-error
+        - runtime-error
+        - auto-reported
+    
+    test-failure-tracker:
+      trigger: on_test_fail
+      enabled: true
+      priority: critical
+      labels:
+        - test-failure
+
+orchestration:
+  auto_commit: false
+  run_tests: true
+
+targets:
+  max_complexity: 15
+  min_coverage: 85
 ```
 
-### 2. Kod
+### Efekt integracji
 
-W `nlp2cmd/src/nlp2cmd/__init__.py`:
+Po skonfigurowaniu, gdy w projekcie wystąpi błąd:
 
-```python
-from projektor.integration import install_global_handler
+```
+$ python my_script.py
+Traceback (most recent call last):
+  File "my_script.py", line 10, in process
+    return data / 0
+ZeroDivisionError: division by zero
 
-# Włącz śledzenie błędów
-install_global_handler()
+[projektor] Bug ticket created: PROJ-42
+[projektor] Title: [Auto] ZeroDivisionError: division by zero
 ```
 
-Lub dla konkretnych funkcji:
-
-```python
-from projektor.integration import catch_errors
-
-@catch_errors
-def parse_command(text: str) -> dict:
-    # Błędy będą automatycznie rejestrowane
-    return parser.parse(text)
-```
-
-### 3. Efekt
-
-Gdy w nlp2cmd wystąpi błąd:
-1. Projektor automatycznie utworzy ticket BUG
-2. Ticket zawiera traceback, lokalizację błędu, kontekst
-3. Jeśli `auto_fix=True`, projektor spróbuje naprawić błąd automatycznie
+Ticket automatycznie zawiera:
+- Pełny traceback
+- Lokalizację błędu (plik, linia, funkcja)
+- Zmienne lokalne (opcjonalnie)
+- Kontekst wywołania
 
 ## API Programistyczne
 
