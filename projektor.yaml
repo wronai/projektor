@@ -1,0 +1,16 @@
+orchestration:
+  auto_commit: true
+  max_iterations: 10
+  run_tests: true
+project:
+  authors: []
+  created_at: '2026-01-26T15:24:57.812520'
+  description: Test projektowania LLM
+  language: python
+  name: test-project
+  repository: null
+  updated_at: '2026-01-26T15:24:57.812526'
+  version: 0.1.0
+targets:
+  max_complexity: 15
+  min_coverage: 85

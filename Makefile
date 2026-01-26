@@ -164,17 +164,23 @@ publish: build ## Publish to PyPI (with version bump)
 	@echo "$(YELLOW)Publishing to PyPI...$(NC)"
 	$(PYTHON) -m twine upload dist/*
 
-push: ## Complete release (bump version + build + push PyPI + Git tag)
+push: ## Complete release (bump version + commit + push + build + push Docker + PyPI + Git tag)
 	@echo "$(YELLOW)Starting complete release process...$(NC)"
 	@echo "$(YELLOW)1. Bumping patch version...$(NC)"
 	$(MAKE) bump-patch
-	@echo "$(YELLOW)2. Building package...$(NC)"
+	@echo "$(YELLOW)2. Committing version changes...$(NC)"
+	git add pyproject.toml src/projektor/__init__.py CHANGELOG.md
+	git commit -m "Bump version to $(shell $(PYTHON) -c 'import toml; content = toml.load(open("pyproject.toml")); print(content["project"]["version"])')"
+	@echo "$(YELLOW)3. Pushing changes to git...$(NC)"
+	git push origin main
+	@echo "$(YELLOW)4. Building package...$(NC)"
 	$(MAKE) build
-	@echo "$(YELLOW)3. Publishing to PyPI...$(NC)"
+	@echo "$(YELLOW)5. Publishing to PyPI...$(NC)"
 	$(PYTHON) -m twine upload dist/*
-	@echo "$(YELLOW)4. Creating and pushing git tag...$(NC)"
+	@echo "$(YELLOW)6. Creating and pushing git tag...$(NC)"
 	$(MAKE) git-tag
 	@echo "$(GREEN)🎉 Complete release finished successfully!$(NC)"
+	@echo "$(GREEN)   - Changes committed and pushed ✓$(NC)"
 	@echo "$(GREEN)   - Package published to PyPI ✓$(NC)"
 	@echo "$(GREEN)   - Git tag created and pushed ✓$(NC)"
 	@echo "$(GREEN)   - Version bumped automatically ✓$(NC)"

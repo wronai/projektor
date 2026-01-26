@@ -202,7 +202,7 @@ def ticket_create(ctx, title: str, ticket_type: str, priority: str, description:
             id=ticket_id,
             title=title,
             description=description,
-            ticket_type=TicketType(ticket_type),
+            type=TicketType(ticket_type),
             priority=Priority(priority),
         )
 

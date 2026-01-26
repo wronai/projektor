@@ -213,13 +213,15 @@ class Project:
         return cls(root_path, metadata, state)
 
     @classmethod
-    def init(cls, path: str | Path, name: str | None = None) -> Project:
+    def init(cls, path: str | Path, name: str | None = None, language: str = "python", description: str = "") -> Project:
         """
         Inicjalizuj nowy projekt.
 
         Args:
             path: Ścieżka do projektu
             name: Nazwa projektu (domyślnie: nazwa katalogu)
+            language: Język programowania projektu
+            description: Opis projektu
 
         Returns:
             Nowy projekt
@@ -234,7 +236,7 @@ class Project:
         (projektor_dir / "sprints").mkdir(exist_ok=True)
 
         # Utwórz metadane
-        metadata = ProjectMetadata(name=name or root_path.name)
+        metadata = ProjectMetadata(name=name or root_path.name, language=language, description=description)
 
         # Utwórz projekt
         project = cls(root_path, metadata, ProjectState())

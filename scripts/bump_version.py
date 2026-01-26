@@ -1,6 +1,7 @@
 import sys
 import re
 from pathlib import Path
+from datetime import datetime
 
 if len(sys.argv) != 2 or sys.argv[1] not in ['patch', 'minor', 'major']:
     print("Usage: python bump_version.py <patch|minor|major>")
@@ -48,5 +49,13 @@ for i, line in enumerate(lines):
         lines[i] = f'__version__ = "{new_version}"'
         break
 init_file.write_text('\n'.join(lines))
+
+# Update CHANGELOG.md
+changelog_file = Path('CHANGELOG.md')
+changelog_content = changelog_file.read_text()
+date_str = datetime.now().strftime("%Y-%m-%d")
+new_changelog = changelog_content.replace("## [Unreleased]", f"## [{new_version}] - {date_str}", 1)
+new_changelog += "\n## [Unreleased]\n"
+changelog_file.write_text(new_changelog)
 
 print(f"Version bumped to {new_version}")
